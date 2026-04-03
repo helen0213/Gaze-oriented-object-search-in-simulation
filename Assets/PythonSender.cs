@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Text;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 // Replace this namespace/class usage if your WebSocket package uses different names.
 using NativeWebSocket;
@@ -16,6 +17,14 @@ public class TestMessage
     public bool usingEyeTracking;
     public Vector3 gazeOrigin;
     public Vector3 gazeDirection;
+    public SceneObjectInfo[] sceneObjects;
+}
+
+[Serializable]
+public class SceneObjectInfo
+{
+    public string name;
+    public Vector3 position;
 }
 
 public class PythonSender : MonoBehaviour
@@ -25,12 +34,16 @@ public class PythonSender : MonoBehaviour
     private bool isConnected = false;
     [Header("Gaze Source")]
     public CombinedGaze combinedGaze;
+    [Header("Scene Objects")]
+    public bool sendSceneObjects = true;
+    public bool includeInactiveColliders = true;
     // Desired send rate (messages per second).
     public float targetHz = 30f;
     // Time between sends (seconds).
     private float sendInterval = 0f;
     // Accumulator for unscaled time to pace sends.
     private float sendAccumulator = 0f;
+    private bool sceneObjectsSent = false;
 
     async void Start()
     {
@@ -119,6 +132,47 @@ public class PythonSender : MonoBehaviour
             msg.usingEyeTracking = combinedGaze.UsingEyeTracking;
             msg.gazeOrigin = combinedGaze.CombinedRay.origin;
             msg.gazeDirection = combinedGaze.CombinedRay.direction;
+        }
+
+        if (sendSceneObjects && !sceneObjectsSent)
+        {
+            Collider[] colliders = includeInactiveColliders
+                ? Resources.FindObjectsOfTypeAll<Collider>()
+                : UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsSortMode.None);
+
+            Scene scene = SceneManager.GetActiveScene();
+            var list = new System.Collections.Generic.List<SceneObjectInfo>(colliders.Length);
+            var seen = new System.Collections.Generic.HashSet<int>();
+
+            for (int i = 0; i < colliders.Length; i++)
+            {
+                Collider c = colliders[i];
+                if (c == null) continue;
+                GameObject go = c.gameObject;
+                if (go == null) continue;
+
+                // Skip assets/prefabs not in the active scene.
+                if (go.hideFlags != HideFlags.None) continue;
+                if (!go.scene.IsValid()) continue;
+                if (go.scene != scene) continue;
+
+                int id = go.GetInstanceID();
+                if (seen.Contains(id)) continue;
+                seen.Add(id);
+
+                Transform t = go.transform;
+                list.Add(new SceneObjectInfo
+                {
+                    name = t.name,
+                    position = t.position
+                });
+            }
+
+            if (list.Count > 0)
+            {
+                msg.sceneObjects = list.ToArray();
+                sceneObjectsSent = true;
+            }
         }
 
         // Serialize and send to Python.
