@@ -1706,6 +1706,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 04735e88ce44349a8b40fc66a554f4d4, type: 3}
   m_Name: 
   m_EditorClassIdentifier: '::'
+  combinedGaze: {fileID: 202460874}
+  sendSceneObjects: 1
+  includeInactiveColliders: 1
+  targetHz: 30
 --- !u!4 &1084441338
 Transform:
   m_ObjectHideFlags: 0
