@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Text;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -27,8 +26,19 @@ public class SceneObjectInfo
     public Vector3 position;
 }
 
+[Serializable]
+public class ActionMessage
+{
+    public string type;
+    public string action;
+    public int step;
+    public string robotState;
+}
+
 public class PythonSender : MonoBehaviour
 {
+    public static event Action<string> RawMessageReceived;
+
     private WebSocket websocket;
     private int seq = 0;
     private bool isConnected = false;
@@ -44,6 +54,14 @@ public class PythonSender : MonoBehaviour
     // Accumulator for unscaled time to pace sends.
     private float sendAccumulator = 0f;
     private bool sceneObjectsSent = false;
+
+    [Header("Action Receiver")]
+    public GameObject actionTarget;
+    public string actionTargetName = "Dog_001";
+    private GameObject cachedActionTarget;
+    [HideInInspector] public string lastAction;
+    [HideInInspector] public string lastRobotState;
+    [HideInInspector] public int lastStep = -1;
 
     async void Start()
     {
@@ -74,9 +92,29 @@ public class PythonSender : MonoBehaviour
 
         websocket.OnMessage += (bytes) =>
         {
-            // Log incoming messages from Python (ack or responses).
+            // Log incoming messages from Python (actions).
             string message = Encoding.UTF8.GetString(bytes);
             Debug.Log("Received from Python: " + message);
+            RawMessageReceived?.Invoke(message);
+
+            // Parse and cache action messages for other scripts to consume.
+            if (message.Contains("\"type\":\"action\""))
+            {
+                ActionMessage actionMsg = JsonUtility.FromJson<ActionMessage>(message);
+                if (actionMsg != null && actionMsg.type == "action")
+                {
+                    lastAction = actionMsg.action;
+                    lastRobotState = actionMsg.robotState;
+                    lastStep = actionMsg.step;
+
+                    GameObject target = GetActionTarget();
+                    if (target != null)
+                    {
+                        // Optional hook: target can implement void OnPythonAction(ActionMessage msg)
+                        target.SendMessage("OnPythonAction", actionMsg, SendMessageOptions.DontRequireReceiver);
+                    }
+                }
+            }
         };
 
         // Connect to the Python server (async).
