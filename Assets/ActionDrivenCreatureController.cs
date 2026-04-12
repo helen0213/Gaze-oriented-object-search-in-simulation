@@ -44,6 +44,7 @@ public class ActionDrivenCreatureController : MonoBehaviour
 
     private void Awake()
     {
+        SimulatorStartMenu.EnsureCreated();
         mover = GetComponent<CreatureMover>();
 
         if (creatureRoot == null)
@@ -81,6 +82,12 @@ public class ActionDrivenCreatureController : MonoBehaviour
 
     private void Update()
     {
+        if (!SimulatorStartMenu.HasStarted())
+        {
+            mover.SetInput(Vector2.zero, LookForwardPoint(), false, false);
+            return;
+        }
+
         if (currentMoveTarget != null)
         {
             Vector3 destination = GetTargetPoint(currentMoveTarget);

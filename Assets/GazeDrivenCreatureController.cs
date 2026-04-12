@@ -5,6 +5,8 @@ using ithappy.Animals_FREE;
 [RequireComponent(typeof(CreatureMover))]
 public class GazeDrivenCreatureController : MonoBehaviour
 {
+    private static bool loggedMenuWait;
+
     [Header("Gaze Source")]
     public GazeFixation fixation;
     public GazeTargetDetector detector;
@@ -24,6 +26,8 @@ public class GazeDrivenCreatureController : MonoBehaviour
 
     private void Awake()
     {
+        Debug.Log("[GazeDrivenCreatureController] Awake on " + gameObject.name);
+        SimulatorStartMenu.EnsureCreated();
         mover = GetComponent<CreatureMover>();
 
         if (creatureRoot == null)
@@ -34,6 +38,25 @@ public class GazeDrivenCreatureController : MonoBehaviour
 
     private void Update()
     {
+        if (!SimulatorStartMenu.HasStarted())
+        {
+            if (!loggedMenuWait)
+            {
+                Debug.Log("[GazeDrivenCreatureController] Waiting for start menu confirmation.");
+                loggedMenuWait = true;
+            }
+
+            Vector3 pausedLookTarget = creatureRoot.position + creatureRoot.forward * 2f;
+            mover.SetInput(Vector2.zero, pausedLookTarget, false, false);
+            return;
+        }
+
+        if (loggedMenuWait)
+        {
+            Debug.Log("[GazeDrivenCreatureController] Start menu completed. Gameplay update resumed.");
+            loggedMenuWait = false;
+        }
+
         GameObject targetObject = GetTrackedTarget();
         Vector3 lookTarget = creatureRoot.position + creatureRoot.forward * 2f;
 
