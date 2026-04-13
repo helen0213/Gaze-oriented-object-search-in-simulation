@@ -10,9 +10,15 @@ public class CombinedGaze : MonoBehaviour
 
     public Ray CombinedRay { get; private set; }
     public bool UsingEyeTracking { get; private set; }
+    public bool EyeTrackingPermissionGranted { get; private set; }
+    public bool EyeTrackingSupported { get; private set; }
 
     void Update()
     {
+        EyeTrackingSupported = OVRPlugin.eyeTrackingSupported;
+        EyeTrackingPermissionGranted =
+            OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.EyeTracking);
+
         bool leftValid = leftEye != null &&
                          leftEye.Confidence >= confidenceThreshold &&
                          leftEye.transform.forward.sqrMagnitude > 0.0001f;
