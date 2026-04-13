@@ -33,6 +33,11 @@ public class GazeInactivityMenu : MonoBehaviour
         instance = root.AddComponent<GazeInactivityMenu>();
     }
 
+    public static bool IsMenuOpen()
+    {
+        return instance != null && instance.menuOpen;
+    }
+
     private void Update()
     {
         if (!SimulatorStartMenu.HasStarted())
@@ -68,6 +73,7 @@ public class GazeInactivityMenu : MonoBehaviour
 
     private void ShowMenu()
     {
+        Debug.Log("[GazeInactivityMenu] Showing inactivity menu.");
         EnsureEventSystem();
         EnsureDesktopCanvas();
         EnsureXRMenu();
@@ -84,6 +90,7 @@ public class GazeInactivityMenu : MonoBehaviour
 
     private void ContinueGame()
     {
+        Debug.Log("[GazeInactivityMenu] Continue selected. Closing inactivity menu.");
         menuOpen = false;
         idleTimer = 0f;
         Time.timeScale = 1f;
@@ -98,6 +105,8 @@ public class GazeInactivityMenu : MonoBehaviour
         {
             xrMenuRoot.SetActive(false);
         }
+
+        Debug.Log("[GazeInactivityMenu] Continue complete. menuOpen=" + menuOpen + ", timeScale=" + Time.timeScale);
     }
 
     private void EndGame()

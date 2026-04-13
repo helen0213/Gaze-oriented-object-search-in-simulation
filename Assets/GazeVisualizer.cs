@@ -26,7 +26,18 @@ public class GazeVisualizer : MonoBehaviour
 
     void Update()
     {
-        if (combinedGaze == null || line == null)
+        if (line == null)
+            return;
+
+        if (SimulationMenuBlocker.IsBlockingScene())
+        {
+            line.enabled = false;
+            return;
+        }
+
+        line.enabled = true;
+
+        if (combinedGaze == null)
             return;
 
         Ray ray = combinedGaze.CombinedRay;

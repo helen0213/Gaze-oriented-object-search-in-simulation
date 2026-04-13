@@ -6,6 +6,9 @@ using ithappy.Animals_FREE;
 public class GazeDrivenCreatureController : MonoBehaviour
 {
     private static bool loggedMenuWait;
+    private GameObject lastMovementLoggedTarget;
+    private bool loggedNoTarget;
+    private float menuResumeGraceTimer;
 
     [Header("Gaze Source")]
     public GazeFixation fixation;
@@ -28,33 +31,38 @@ public class GazeDrivenCreatureController : MonoBehaviour
     {
         Debug.Log("[GazeDrivenCreatureController] Awake on " + gameObject.name);
         SimulatorStartMenu.EnsureCreated();
-        mover = GetComponent<CreatureMover>();
-
-        if (creatureRoot == null)
-        {
-            creatureRoot = transform;
-        }
+        EnsureMover();
+        EnsureCreatureRoot();
     }
 
     private void Update()
     {
-        if (!SimulatorStartMenu.HasStarted())
+        EnsureMover();
+        EnsureCreatureRoot();
+
+        if (SimulationMenuBlocker.IsBlockingScene())
         {
             if (!loggedMenuWait)
             {
-                Debug.Log("[GazeDrivenCreatureController] Waiting for start menu confirmation.");
+                Debug.Log("[GazeDrivenCreatureController] Waiting for menu confirmation. started=" + SimulatorStartMenu.HasStarted() + ", inactivityOpen=" + GazeInactivityMenu.IsMenuOpen());
                 loggedMenuWait = true;
             }
 
             Vector3 pausedLookTarget = creatureRoot.position + creatureRoot.forward * 2f;
             mover.SetInput(Vector2.zero, pausedLookTarget, false, false);
+            menuResumeGraceTimer = 0.5f;
             return;
         }
 
         if (loggedMenuWait)
         {
-            Debug.Log("[GazeDrivenCreatureController] Start menu completed. Gameplay update resumed.");
+            Debug.Log("[GazeDrivenCreatureController] Menu completed. Gameplay update resumed. started=" + SimulatorStartMenu.HasStarted() + ", inactivityOpen=" + GazeInactivityMenu.IsMenuOpen());
             loggedMenuWait = false;
+        }
+
+        if (menuResumeGraceTimer > 0f)
+        {
+            menuResumeGraceTimer -= Time.deltaTime;
         }
 
         GameObject targetObject = GetTrackedTarget();
@@ -62,8 +70,22 @@ public class GazeDrivenCreatureController : MonoBehaviour
 
         if (targetObject == null)
         {
+            if (!loggedNoTarget)
+            {
+                Debug.Log("[GazeDrivenCreatureController] No tracked target after menu.");
+                loggedNoTarget = true;
+                lastMovementLoggedTarget = null;
+            }
+
             mover.SetInput(Vector2.zero, lookTarget, false, false);
             return;
+        }
+
+        if (lastMovementLoggedTarget != targetObject)
+        {
+            Debug.Log("[GazeDrivenCreatureController] Tracking target " + targetObject.name);
+            lastMovementLoggedTarget = targetObject;
+            loggedNoTarget = false;
         }
 
         Vector3 destination = GetTargetPoint(targetObject);
@@ -72,6 +94,7 @@ public class GazeDrivenCreatureController : MonoBehaviour
 
         if (flatOffset.sqrMagnitude <= stopDistance * stopDistance)
         {
+            Debug.Log("[GazeDrivenCreatureController] Target is inside stop distance: " + flatOffset.magnitude.ToString("F2"));
             mover.SetInput(Vector2.zero, faceTargetWhileIdle ? destination : lookTarget, false, false);
             return;
         }
@@ -87,11 +110,20 @@ public class GazeDrivenCreatureController : MonoBehaviour
             Debug.DrawLine(creatureRoot.position + Vector3.up * 0.25f, destination, Color.cyan);
         }
 
+        Debug.Log("[GazeDrivenCreatureController] Moving toward " + targetObject.name + " with distance " + flatOffset.magnitude.ToString("F2"));
+
         mover.SetInput(axis, destination, shouldRun, false);
     }
 
     private GameObject GetTrackedTarget()
     {
+        EnsureCreatureRoot();
+
+        if (detector != null && detector.CurrentTarget != null)
+        {
+            return detector.CurrentTarget;
+        }
+
         if (requireFixation)
         {
             return fixation != null ? fixation.ConfirmedTarget : null;
@@ -107,6 +139,8 @@ public class GazeDrivenCreatureController : MonoBehaviour
 
     private Vector3 GetTargetPoint(GameObject targetObject)
     {
+        EnsureCreatureRoot();
+
         Collider targetCollider = targetObject.GetComponentInChildren<Collider>();
         Vector3 origin = creatureRoot.position;
 
@@ -120,5 +154,21 @@ public class GazeDrivenCreatureController : MonoBehaviour
         Vector3 fallback = targetObject.transform.position;
         fallback.y = origin.y;
         return fallback;
+    }
+
+    private void EnsureCreatureRoot()
+    {
+        if (creatureRoot == null)
+        {
+            creatureRoot = transform;
+        }
+    }
+
+    private void EnsureMover()
+    {
+        if (mover == null)
+        {
+            mover = GetComponent<CreatureMover>();
+        }
     }
 }

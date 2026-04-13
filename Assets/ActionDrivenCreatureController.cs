@@ -82,7 +82,7 @@ public class ActionDrivenCreatureController : MonoBehaviour
 
     private void Update()
     {
-        if (!SimulatorStartMenu.HasStarted())
+        if (SimulationMenuBlocker.IsBlockingScene())
         {
             mover.SetInput(Vector2.zero, LookForwardPoint(), false, false);
             return;
