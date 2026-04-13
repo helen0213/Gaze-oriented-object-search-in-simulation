@@ -20,8 +20,7 @@ public class GazeInactivityMenu : MonoBehaviour
     private float idleTimer;
     private bool menuOpen;
 
-    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void CreateMenu()
+    public static void EnsureCreated()
     {
         if (instance != null)
         {
@@ -29,13 +28,20 @@ public class GazeInactivityMenu : MonoBehaviour
         }
 
         GameObject root = new GameObject("GazeInactivityMenu");
+        MarkRuntimeOnly(root);
         DontDestroyOnLoad(root);
         instance = root.AddComponent<GazeInactivityMenu>();
     }
 
     public static bool IsMenuOpen()
     {
-        return instance != null && instance.menuOpen;
+        if (instance == null)
+        {
+            EnsureCreated();
+            return false;
+        }
+
+        return instance.menuOpen;
     }
 
     private void Update()
@@ -148,6 +154,7 @@ public class GazeInactivityMenu : MonoBehaviour
         }
 
         GameObject eventSystemObject = new GameObject("EventSystem");
+        MarkRuntimeOnly(eventSystemObject);
         DontDestroyOnLoad(eventSystemObject);
         eventSystemObject.AddComponent<EventSystem>();
         eventSystemObject.AddComponent<InputSystemUIInputModule>();
@@ -161,6 +168,7 @@ public class GazeInactivityMenu : MonoBehaviour
         }
 
         GameObject canvasObject = new GameObject("InactivityMenuCanvas");
+        MarkRuntimeOnly(canvasObject);
         DontDestroyOnLoad(canvasObject);
 
         desktopCanvas = canvasObject.AddComponent<Canvas>();
@@ -256,6 +264,7 @@ public class GazeInactivityMenu : MonoBehaviour
         }
 
         xrMenuRoot = new GameObject("XRInactivityMenu");
+        MarkRuntimeOnly(xrMenuRoot);
         DontDestroyOnLoad(xrMenuRoot);
 
         CreateQuad("PanelShadow", xrMenuRoot.transform, new Vector3(0f, -0.02f, 0.03f), new Vector3(1.56f, 0.92f, 1f), new Color(0f, 0f, 0f, 0.35f));
@@ -378,6 +387,7 @@ public class GazeInactivityMenu : MonoBehaviour
     {
         GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
         quad.name = name;
+        MarkRuntimeOnly(quad);
         quad.transform.SetParent(parent, false);
         quad.transform.localPosition = localPosition;
         quad.transform.localRotation = Quaternion.identity;
@@ -393,6 +403,7 @@ public class GazeInactivityMenu : MonoBehaviour
     {
         GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
         quad.name = name;
+        MarkRuntimeOnly(quad);
         quad.transform.SetParent(parent, false);
         quad.transform.localPosition = localPosition;
         quad.transform.localRotation = Quaternion.identity;
@@ -409,6 +420,7 @@ public class GazeInactivityMenu : MonoBehaviour
     private static GameObject CreateUIObject(string name, Transform parent)
     {
         GameObject obj = new GameObject(name);
+        MarkRuntimeOnly(obj);
         obj.transform.SetParent(parent, false);
         obj.AddComponent<RectTransform>();
         return obj;
@@ -426,7 +438,7 @@ public class GazeInactivityMenu : MonoBehaviour
     {
         if (builtInFont == null)
         {
-            builtInFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            builtInFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
         return builtInFont;
@@ -509,5 +521,10 @@ public class GazeInactivityMenu : MonoBehaviour
             case ' ': return new[] { "00000", "00000", "00000", "00000", "00000", "00000", "00000" };
             default: return new[] { "11111", "00001", "00010", "00100", "00100", "00000", "00100" };
         }
+    }
+
+    private static void MarkRuntimeOnly(GameObject obj)
+    {
+        obj.hideFlags = HideFlags.HideInHierarchy;
     }
 }

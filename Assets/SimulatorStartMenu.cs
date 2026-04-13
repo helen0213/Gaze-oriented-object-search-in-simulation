@@ -6,11 +6,22 @@ using UnityEngine.UI;
 
 public class SimulatorStartMenu : MonoBehaviour
 {
+    private sealed class Bootstrap : MonoBehaviour
+    {
+        private void Start()
+        {
+            EnsureCreated();
+            Destroy(gameObject);
+        }
+    }
+
     private static SimulatorStartMenu instance;
     private static Font builtInFont;
     private static bool loggedStartedState;
+    private static bool bootstrapScheduled;
 
     private const float MenuDistance = 1.35f;
+    private const float AnchorWaitTimeout = 1.5f;
 
     private Canvas desktopCanvas;
     private GameObject desktopPanel;
@@ -25,11 +36,26 @@ public class SimulatorStartMenu : MonoBehaviour
 
     private Transform menuAnchor;
     private bool hasStarted;
+    private bool menuShown;
+    private bool pauseApplied;
+    private bool xrMenuVisible;
+    private float menuRequestRealtime;
+    private bool loggedAnchorMissing;
+    private bool loggedAnchorReady;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
-    private static void CreateMenu()
+    private static void ScheduleBootstrap()
     {
-        EnsureCreated();
+        if (bootstrapScheduled || instance != null)
+        {
+            return;
+        }
+
+        GameObject bootstrapObject = new GameObject("SimulatorStartMenuBootstrap");
+        MarkRuntimeOnly(bootstrapObject);
+        DontDestroyOnLoad(bootstrapObject);
+        bootstrapObject.AddComponent<Bootstrap>();
+        bootstrapScheduled = true;
     }
 
     public static void EnsureCreated()
@@ -41,19 +67,27 @@ public class SimulatorStartMenu : MonoBehaviour
         }
 
         GameObject root = new GameObject("SimulatorStartMenu");
+        MarkRuntimeOnly(root);
         DontDestroyOnLoad(root);
         instance = root.AddComponent<SimulatorStartMenu>();
+        bootstrapScheduled = false;
         instance.ShowMenu();
     }
 
     public static bool HasStarted()
     {
-        return instance != null && instance.hasStarted;
+        if (instance == null)
+        {
+            EnsureCreated();
+            return false;
+        }
+
+        return instance.hasStarted;
     }
 
     private void ShowMenu()
     {
-        if (hasStarted)
+        if (hasStarted || menuShown)
         {
             return;
         }
@@ -62,6 +96,13 @@ public class SimulatorStartMenu : MonoBehaviour
         EnsureDesktopCanvas();
         EnsureXRMenu();
 
+        menuShown = true;
+        pauseApplied = false;
+        xrMenuVisible = false;
+        menuRequestRealtime = Time.realtimeSinceStartup;
+        loggedAnchorMissing = false;
+        loggedAnchorReady = false;
+
         if (desktopPanel != null)
         {
             desktopPanel.SetActive(true);
@@ -69,15 +110,10 @@ public class SimulatorStartMenu : MonoBehaviour
 
         if (xrMenuRoot != null)
         {
-            xrMenuRoot.SetActive(true);
+            xrMenuRoot.SetActive(false);
         }
 
-        UpdateMenuPlacement();
-
-        Time.timeScale = 0f;
-        AudioListener.pause = true;
-        Cursor.visible = true;
-        Cursor.lockState = CursorLockMode.None;
+        TryFinalizeMenuPresentation();
     }
 
     private void StartSimulation()
@@ -95,6 +131,9 @@ public class SimulatorStartMenu : MonoBehaviour
             xrMenuRoot.SetActive(false);
         }
 
+        menuShown = false;
+        pauseApplied = false;
+        xrMenuVisible = false;
         Time.timeScale = 1f;
         AudioListener.pause = false;
     }
@@ -114,7 +153,7 @@ public class SimulatorStartMenu : MonoBehaviour
     {
         if (!hasStarted)
         {
-            UpdateMenuPlacement();
+            TryFinalizeMenuPresentation();
 
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
@@ -140,6 +179,42 @@ public class SimulatorStartMenu : MonoBehaviour
         }
     }
 
+    private void TryFinalizeMenuPresentation()
+    {
+        if (!menuShown)
+        {
+            return;
+        }
+
+        bool anchorReady = UpdateMenuPlacement();
+        bool waitTimedOut = Time.realtimeSinceStartup - menuRequestRealtime >= AnchorWaitTimeout;
+
+        if (anchorReady && !xrMenuVisible && xrMenuRoot != null)
+        {
+            xrMenuRoot.SetActive(true);
+            xrMenuVisible = true;
+            Debug.Log("[SimulatorStartMenu] XR menu activated at world position "
+                + xrMenuRoot.transform.position + " using anchor "
+                + (menuAnchor != null ? menuAnchor.name : "null"));
+        }
+
+        if (pauseApplied)
+        {
+            return;
+        }
+
+        if (!anchorReady && !waitTimedOut)
+        {
+            return;
+        }
+
+        Time.timeScale = 0f;
+        AudioListener.pause = true;
+        Cursor.visible = true;
+        Cursor.lockState = CursorLockMode.None;
+        pauseApplied = true;
+    }
+
     private void EnsureEventSystem()
     {
         if (FindFirstObjectByType<EventSystem>() != null)
@@ -148,6 +223,7 @@ public class SimulatorStartMenu : MonoBehaviour
         }
 
         GameObject eventSystemObject = new GameObject("EventSystem");
+        MarkRuntimeOnly(eventSystemObject);
         DontDestroyOnLoad(eventSystemObject);
         eventSystemObject.AddComponent<EventSystem>();
         eventSystemObject.AddComponent<InputSystemUIInputModule>();
@@ -161,6 +237,7 @@ public class SimulatorStartMenu : MonoBehaviour
         }
 
         GameObject canvasObject = new GameObject("StartMenuCanvas");
+        MarkRuntimeOnly(canvasObject);
         DontDestroyOnLoad(canvasObject);
 
         desktopCanvas = canvasObject.AddComponent<Canvas>();
@@ -260,6 +337,7 @@ public class SimulatorStartMenu : MonoBehaviour
         }
 
         xrMenuRoot = new GameObject("XRWorldMenu");
+        MarkRuntimeOnly(xrMenuRoot);
         DontDestroyOnLoad(xrMenuRoot);
 
         xrPanelObject = CreateQuad("XRPanel", xrMenuRoot.transform, Vector3.zero, new Vector3(1.35f, 0.82f, 1f), Color.black);
@@ -288,12 +366,24 @@ public class SimulatorStartMenu : MonoBehaviour
             new Vector3(0.2f, 0.08f, 1f));
     }
 
-    private void UpdateMenuPlacement()
+    private bool UpdateMenuPlacement()
     {
         Transform anchor = FindMenuAnchor();
         if (anchor == null)
         {
-            return;
+            if (!loggedAnchorMissing)
+            {
+                Debug.LogWarning("[SimulatorStartMenu] No XR anchor found yet for start menu.");
+                loggedAnchorMissing = true;
+            }
+            return false;
+        }
+
+        if (!loggedAnchorReady || menuAnchor != anchor)
+        {
+            Debug.Log("[SimulatorStartMenu] Using XR anchor " + anchor.name + " at " + anchor.position);
+            loggedAnchorReady = true;
+            loggedAnchorMissing = false;
         }
 
         if (menuAnchor != anchor)
@@ -311,16 +401,12 @@ public class SimulatorStartMenu : MonoBehaviour
             xrMenuRoot.transform.localRotation = Quaternion.identity;
             xrMenuRoot.transform.localScale = Vector3.one;
         }
+
+        return true;
     }
 
     private Transform FindMenuAnchor()
     {
-        Camera menuCamera = FindMenuCamera();
-        if (menuCamera != null)
-        {
-            return menuCamera.transform;
-        }
-
         GameObject centerEye = GameObject.Find("CenterEyeAnchor");
         if (centerEye != null)
         {
@@ -331,6 +417,18 @@ public class SimulatorStartMenu : MonoBehaviour
         if (rig != null)
         {
             return rig.transform;
+        }
+
+        GameObject ovrRig = GameObject.Find("OVRCameraRig");
+        if (ovrRig != null)
+        {
+            return ovrRig.transform;
+        }
+
+        Camera menuCamera = FindMenuCamera();
+        if (menuCamera != null)
+        {
+            return menuCamera.transform;
         }
 
         return null;
@@ -359,6 +457,7 @@ public class SimulatorStartMenu : MonoBehaviour
     private static GameObject CreateUIObject(string name, Transform parent)
     {
         GameObject obj = new GameObject(name);
+        MarkRuntimeOnly(obj);
         obj.transform.SetParent(parent, false);
         obj.AddComponent<RectTransform>();
         return obj;
@@ -376,7 +475,7 @@ public class SimulatorStartMenu : MonoBehaviour
     {
         if (builtInFont == null)
         {
-            builtInFont = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            builtInFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         }
 
         return builtInFont;
@@ -386,6 +485,7 @@ public class SimulatorStartMenu : MonoBehaviour
     {
         GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
         quad.name = name;
+        MarkRuntimeOnly(quad);
         quad.transform.SetParent(parent, false);
         quad.transform.localPosition = localPosition;
         quad.transform.localRotation = Quaternion.identity;
@@ -401,6 +501,7 @@ public class SimulatorStartMenu : MonoBehaviour
     {
         GameObject quad = GameObject.CreatePrimitive(PrimitiveType.Quad);
         quad.name = name;
+        MarkRuntimeOnly(quad);
         quad.transform.SetParent(parent, false);
         quad.transform.localPosition = localPosition;
         quad.transform.localRotation = Quaternion.identity;
@@ -485,5 +586,10 @@ public class SimulatorStartMenu : MonoBehaviour
             case ' ': return new[] { "00000", "00000", "00000", "00000", "00000", "00000", "00000" };
             default: return new[] { "11111", "00001", "00010", "00100", "00100", "00000", "00100" };
         }
+    }
+
+    private static void MarkRuntimeOnly(GameObject obj)
+    {
+        obj.hideFlags = HideFlags.HideInHierarchy;
     }
 }

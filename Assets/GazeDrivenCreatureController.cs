@@ -30,7 +30,6 @@ public class GazeDrivenCreatureController : MonoBehaviour
     private void Awake()
     {
         Debug.Log("[GazeDrivenCreatureController] Awake on " + gameObject.name);
-        SimulatorStartMenu.EnsureCreated();
         EnsureMover();
         EnsureCreatureRoot();
     }

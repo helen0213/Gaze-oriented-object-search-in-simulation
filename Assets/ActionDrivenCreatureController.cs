@@ -44,7 +44,6 @@ public class ActionDrivenCreatureController : MonoBehaviour
 
     private void Awake()
     {
-        SimulatorStartMenu.EnsureCreated();
         mover = GetComponent<CreatureMover>();
 
         if (creatureRoot == null)
