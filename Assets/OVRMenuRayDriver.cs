@@ -13,6 +13,7 @@ public class OVRMenuRayDriver : MonoBehaviour
     private Transform visualTarget;
     private LineRenderer lineRenderer;
     private Transform rayEndVisual;
+    private bool hasSeenControllerActivity;
 
     public void Configure(EventSystem eventSystem)
     {
@@ -38,6 +39,7 @@ public class OVRMenuRayDriver : MonoBehaviour
     public void SetXRMenuInputEnabled(bool enabled)
     {
         xrMenuInputEnabled = enabled;
+        hasSeenControllerActivity = false;
 
         if (ovrInputModule == null)
         {
@@ -66,15 +68,28 @@ public class OVRMenuRayDriver : MonoBehaviour
             return;
         }
 
-        Transform controllerTransform = GetPreferredControllerTransform();
+        Transform controllerTransform = GetPreferredControllerTransform(out bool controllerIsActive);
+        if (controllerIsActive)
+        {
+            hasSeenControllerActivity = true;
+        }
+
+        if (!hasSeenControllerActivity)
+        {
+            ovrInputModule.rayTransform = null;
+            SetVisualsActive(false);
+            return;
+        }
+
         ovrInputModule.rayTransform = controllerTransform;
         UpdateVisuals(controllerTransform);
     }
 
-    private static Transform GetPreferredControllerTransform()
+    private static Transform GetPreferredControllerTransform(out bool controllerIsActive)
     {
         if (IsControllerActivelyPressing(OVRInput.Controller.RTouch))
         {
+            controllerIsActive = true;
             Transform rightPressed = FindControllerTransform("RightControllerAnchor", "RightHandOnControllerAnchor");
             if (rightPressed != null)
             {
@@ -84,12 +99,15 @@ public class OVRMenuRayDriver : MonoBehaviour
 
         if (IsControllerActivelyPressing(OVRInput.Controller.LTouch))
         {
+            controllerIsActive = true;
             Transform leftPressed = FindControllerTransform("LeftControllerAnchor", "LeftHandOnControllerAnchor");
             if (leftPressed != null)
             {
                 return leftPressed;
             }
         }
+
+        controllerIsActive = false;
 
         Transform right = FindControllerTransform("RightControllerAnchor", "RightHandOnControllerAnchor");
         if (right != null)
@@ -103,6 +121,7 @@ public class OVRMenuRayDriver : MonoBehaviour
     private static bool IsControllerActivelyPressing(OVRInput.Controller controller)
     {
         return OVRInput.Get(OVRInput.Button.One, controller)
+            || OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, controller)
             || OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, controller) > 0.5f;
     }
 
