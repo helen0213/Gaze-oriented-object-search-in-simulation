@@ -42,6 +42,8 @@ public class SimulatorStartMenu : MonoBehaviour
     private float menuRequestRealtime;
     private bool loggedAnchorMissing;
     private bool loggedAnchorReady;
+    private bool leftControllerPressedLastFrame;
+    private bool rightControllerPressedLastFrame;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void ScheduleBootstrap()
@@ -154,6 +156,7 @@ public class SimulatorStartMenu : MonoBehaviour
         if (!hasStarted)
         {
             TryFinalizeMenuPresentation();
+            HandleXRControllerInput();
 
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
@@ -176,6 +179,35 @@ public class SimulatorStartMenu : MonoBehaviour
         {
             Debug.Log("[SimulatorStartMenu] Update running. hasStarted=" + hasStarted + ", timeScale=" + Time.timeScale);
             loggedStartedState = true;
+        }
+    }
+
+    private void HandleXRControllerInput()
+    {
+        if (!xrMenuVisible || xrStartButtonObject == null || xrExitButtonObject == null)
+        {
+            return;
+        }
+
+        if (!XRMenuControllerInput.TryGetPressedButton(
+                xrStartButtonObject,
+                xrExitButtonObject,
+                ref leftControllerPressedLastFrame,
+                ref rightControllerPressedLastFrame,
+                out GameObject pressedButton))
+        {
+            return;
+        }
+
+        if (pressedButton == xrStartButtonObject)
+        {
+            StartSimulation();
+            return;
+        }
+
+        if (pressedButton == xrExitButtonObject)
+        {
+            ExitSimulation();
         }
     }
 

@@ -19,6 +19,10 @@ public class GazeInactivityMenu : MonoBehaviour
     private GameObject xrMenuRoot;
     private float idleTimer;
     private bool menuOpen;
+    private bool leftControllerPressedLastFrame;
+    private bool rightControllerPressedLastFrame;
+    private GameObject xrContinueButtonObject;
+    private GameObject xrEndButtonObject;
 
     public static void EnsureCreated()
     {
@@ -61,6 +65,7 @@ public class GazeInactivityMenu : MonoBehaviour
         {
             HandleKeyboard();
             UpdateXRPlacement();
+            HandleXRControllerInput();
             return;
         }
 
@@ -270,8 +275,8 @@ public class GazeInactivityMenu : MonoBehaviour
         CreateQuad("PanelShadow", xrMenuRoot.transform, new Vector3(0f, -0.02f, 0.03f), new Vector3(1.56f, 0.92f, 1f), new Color(0f, 0f, 0f, 0.35f));
         CreateQuad("Panel", xrMenuRoot.transform, Vector3.zero, new Vector3(1.48f, 0.84f, 1f), new Color(0.05f, 0.08f, 0.11f, 0.98f));
         CreateQuad("Accent", xrMenuRoot.transform, new Vector3(0f, 0.27f, -0.01f), new Vector3(1.18f, 0.035f, 1f), new Color(0.38f, 0.8f, 0.94f, 1f));
-        CreateQuad("ContinueButton", xrMenuRoot.transform, new Vector3(-0.29f, -0.19f, -0.01f), new Vector3(0.48f, 0.14f, 1f), new Color(0.15f, 0.58f, 0.66f, 1f));
-        CreateQuad("EndButton", xrMenuRoot.transform, new Vector3(0.29f, -0.19f, -0.01f), new Vector3(0.42f, 0.14f, 1f), new Color(0.72f, 0.29f, 0.23f, 1f));
+        xrContinueButtonObject = CreateQuad("ContinueButton", xrMenuRoot.transform, new Vector3(-0.29f, -0.19f, -0.01f), new Vector3(0.48f, 0.14f, 1f), new Color(0.15f, 0.58f, 0.66f, 1f));
+        xrEndButtonObject = CreateQuad("EndButton", xrMenuRoot.transform, new Vector3(0.29f, -0.19f, -0.01f), new Vector3(0.42f, 0.14f, 1f), new Color(0.72f, 0.29f, 0.23f, 1f));
 
         CreateTextQuad("Title", xrMenuRoot.transform, "NEED A MOMENT?", new Vector3(0f, 0.14f, -0.02f), new Vector3(0.88f, 0.12f, 1f));
         CreateTextQuad("Subtitle", xrMenuRoot.transform, "NO GAZE FOR 10 SECONDS", new Vector3(0f, 0.02f, -0.02f), new Vector3(0.9f, 0.065f, 1f));
@@ -279,6 +284,35 @@ public class GazeInactivityMenu : MonoBehaviour
         CreateTextQuad("EndLabel", xrMenuRoot.transform, "END SESSION", new Vector3(0.29f, -0.19f, -0.03f), new Vector3(0.35f, 0.07f, 1f));
 
         xrMenuRoot.SetActive(false);
+    }
+
+    private void HandleXRControllerInput()
+    {
+        if (!menuOpen || xrContinueButtonObject == null || xrEndButtonObject == null)
+        {
+            return;
+        }
+
+        if (!XRMenuControllerInput.TryGetPressedButton(
+                xrContinueButtonObject,
+                xrEndButtonObject,
+                ref leftControllerPressedLastFrame,
+                ref rightControllerPressedLastFrame,
+                out GameObject pressedButton))
+        {
+            return;
+        }
+
+        if (pressedButton == xrContinueButtonObject)
+        {
+            ContinueGame();
+            return;
+        }
+
+        if (pressedButton == xrEndButtonObject)
+        {
+            EndGame();
+        }
     }
 
     private void UpdateXRPlacement()
