@@ -17,12 +17,12 @@ public class GazeInactivityMenu : MonoBehaviour
     private GameObject desktopPanel;
     private GameObject desktopCard;
     private GameObject xrMenuRoot;
+    private Canvas xrCanvas;
     private float idleTimer;
     private bool menuOpen;
-    private bool leftControllerPressedLastFrame;
-    private bool rightControllerPressedLastFrame;
     private GameObject xrContinueButtonObject;
     private GameObject xrEndButtonObject;
+    private OVRMenuRayDriver ovrMenuRayDriver;
 
     public static void EnsureCreated()
     {
@@ -65,7 +65,6 @@ public class GazeInactivityMenu : MonoBehaviour
         {
             HandleKeyboard();
             UpdateXRPlacement();
-            HandleXRControllerInput();
             return;
         }
 
@@ -97,6 +96,12 @@ public class GazeInactivityMenu : MonoBehaviour
         desktopCanvas.gameObject.SetActive(true);
         xrMenuRoot.SetActive(true);
         UpdateXRPlacement();
+
+        if (ovrMenuRayDriver != null)
+        {
+            ovrMenuRayDriver.SetVisualTarget(xrMenuRoot.transform);
+            ovrMenuRayDriver.SetXRMenuInputEnabled(true);
+        }
     }
 
     private void ContinueGame()
@@ -115,6 +120,12 @@ public class GazeInactivityMenu : MonoBehaviour
         if (xrMenuRoot != null)
         {
             xrMenuRoot.SetActive(false);
+        }
+
+        if (ovrMenuRayDriver != null)
+        {
+            ovrMenuRayDriver.SetVisualTarget(null);
+            ovrMenuRayDriver.SetXRMenuInputEnabled(false);
         }
 
         Debug.Log("[GazeInactivityMenu] Continue complete. menuOpen=" + menuOpen + ", timeScale=" + Time.timeScale);
@@ -155,6 +166,8 @@ public class GazeInactivityMenu : MonoBehaviour
     {
         if (FindFirstObjectByType<EventSystem>() != null)
         {
+            EventSystem existingSystem = FindFirstObjectByType<EventSystem>();
+            EnsureOVRMenuRayDriver(existingSystem.gameObject);
             return;
         }
 
@@ -163,6 +176,7 @@ public class GazeInactivityMenu : MonoBehaviour
         DontDestroyOnLoad(eventSystemObject);
         eventSystemObject.AddComponent<EventSystem>();
         eventSystemObject.AddComponent<InputSystemUIInputModule>();
+        EnsureOVRMenuRayDriver(eventSystemObject);
     }
 
     private void EnsureDesktopCanvas()
@@ -272,47 +286,82 @@ public class GazeInactivityMenu : MonoBehaviour
         MarkRuntimeOnly(xrMenuRoot);
         DontDestroyOnLoad(xrMenuRoot);
 
-        CreateQuad("PanelShadow", xrMenuRoot.transform, new Vector3(0f, -0.02f, 0.03f), new Vector3(1.56f, 0.92f, 1f), new Color(0f, 0f, 0f, 0.35f));
-        CreateQuad("Panel", xrMenuRoot.transform, Vector3.zero, new Vector3(1.48f, 0.84f, 1f), new Color(0.05f, 0.08f, 0.11f, 0.98f));
-        CreateQuad("Accent", xrMenuRoot.transform, new Vector3(0f, 0.27f, -0.01f), new Vector3(1.18f, 0.035f, 1f), new Color(0.38f, 0.8f, 0.94f, 1f));
-        xrContinueButtonObject = CreateQuad("ContinueButton", xrMenuRoot.transform, new Vector3(-0.29f, -0.19f, -0.01f), new Vector3(0.48f, 0.14f, 1f), new Color(0.15f, 0.58f, 0.66f, 1f));
-        xrEndButtonObject = CreateQuad("EndButton", xrMenuRoot.transform, new Vector3(0.29f, -0.19f, -0.01f), new Vector3(0.42f, 0.14f, 1f), new Color(0.72f, 0.29f, 0.23f, 1f));
+        xrCanvas = xrMenuRoot.AddComponent<Canvas>();
+        xrCanvas.renderMode = RenderMode.WorldSpace;
+        xrCanvas.sortingOrder = short.MaxValue - 1;
 
-        CreateTextQuad("Title", xrMenuRoot.transform, "NEED A MOMENT?", new Vector3(0f, 0.14f, -0.02f), new Vector3(0.88f, 0.12f, 1f));
-        CreateTextQuad("Subtitle", xrMenuRoot.transform, "NO GAZE FOR 10 SECONDS", new Vector3(0f, 0.02f, -0.02f), new Vector3(0.9f, 0.065f, 1f));
-        CreateTextQuad("ContinueLabel", xrMenuRoot.transform, "CONTINUE", new Vector3(-0.29f, -0.19f, -0.03f), new Vector3(0.34f, 0.07f, 1f));
-        CreateTextQuad("EndLabel", xrMenuRoot.transform, "END SESSION", new Vector3(0.29f, -0.19f, -0.03f), new Vector3(0.35f, 0.07f, 1f));
+        RectTransform xrCanvasRect = xrCanvas.GetComponent<RectTransform>();
+        xrCanvasRect.sizeDelta = new Vector2(1040f, 640f);
+        xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
+
+        CanvasScaler xrScaler = xrMenuRoot.AddComponent<CanvasScaler>();
+        xrScaler.dynamicPixelsPerUnit = 24f;
+
+        xrMenuRoot.AddComponent<OVRRaycaster>();
+
+        GameObject xrPanel = CreateUIObject("XRPanel", xrMenuRoot.transform);
+        Image xrPanelImage = xrPanel.AddComponent<Image>();
+        xrPanelImage.color = new Color(0.05f, 0.08f, 0.11f, 0.98f);
+        StretchToParent(xrPanel.GetComponent<RectTransform>());
+
+        GameObject accent = CreateUIObject("XRAccent", xrPanel.transform);
+        Image accentImage = accent.AddComponent<Image>();
+        accentImage.color = new Color(0.38f, 0.8f, 0.94f, 1f);
+
+        RectTransform accentRect = accent.GetComponent<RectTransform>();
+        accentRect.anchorMin = new Vector2(0.1f, 0.8f);
+        accentRect.anchorMax = new Vector2(0.9f, 0.835f);
+        accentRect.offsetMin = Vector2.zero;
+        accentRect.offsetMax = Vector2.zero;
+
+        GameObject title = CreateUIObject("XRTitle", xrPanel.transform);
+        Text titleText = title.AddComponent<Text>();
+        titleText.text = "Need a moment?";
+        titleText.alignment = TextAnchor.MiddleCenter;
+        titleText.font = GetBuiltInFont();
+        titleText.fontSize = 54;
+        titleText.fontStyle = FontStyle.Bold;
+        titleText.color = Color.white;
+
+        RectTransform titleRect = title.GetComponent<RectTransform>();
+        titleRect.anchorMin = new Vector2(0.14f, 0.56f);
+        titleRect.anchorMax = new Vector2(0.86f, 0.74f);
+        titleRect.offsetMin = Vector2.zero;
+        titleRect.offsetMax = Vector2.zero;
+
+        GameObject subtitle = CreateUIObject("XRSubtitle", xrPanel.transform);
+        Text subtitleText = subtitle.AddComponent<Text>();
+        subtitleText.text = "We have not detected gaze on any target for 10 seconds.";
+        subtitleText.alignment = TextAnchor.MiddleCenter;
+        subtitleText.font = GetBuiltInFont();
+        subtitleText.fontSize = 28;
+        subtitleText.color = new Color(0.8f, 0.87f, 0.92f, 1f);
+
+        RectTransform subtitleRect = subtitle.GetComponent<RectTransform>();
+        subtitleRect.anchorMin = new Vector2(0.12f, 0.4f);
+        subtitleRect.anchorMax = new Vector2(0.88f, 0.56f);
+        subtitleRect.offsetMin = Vector2.zero;
+        subtitleRect.offsetMax = Vector2.zero;
+
+        xrContinueButtonObject = CreateXRButton(
+            "XRContinueButton",
+            xrPanel.transform,
+            "Continue",
+            new Color(0.15f, 0.58f, 0.66f, 1f),
+            new Vector2(0.14f, 0.16f),
+            new Vector2(0.46f, 0.32f),
+            ContinueGame);
+
+        xrEndButtonObject = CreateXRButton(
+            "XREndButton",
+            xrPanel.transform,
+            "End Session",
+            new Color(0.72f, 0.29f, 0.23f, 1f),
+            new Vector2(0.54f, 0.16f),
+            new Vector2(0.86f, 0.32f),
+            EndGame);
 
         xrMenuRoot.SetActive(false);
-    }
-
-    private void HandleXRControllerInput()
-    {
-        if (!menuOpen || xrContinueButtonObject == null || xrEndButtonObject == null)
-        {
-            return;
-        }
-
-        if (!XRMenuControllerInput.TryGetPressedButton(
-                xrContinueButtonObject,
-                xrEndButtonObject,
-                ref leftControllerPressedLastFrame,
-                ref rightControllerPressedLastFrame,
-                out GameObject pressedButton))
-        {
-            return;
-        }
-
-        if (pressedButton == xrContinueButtonObject)
-        {
-            ContinueGame();
-            return;
-        }
-
-        if (pressedButton == xrEndButtonObject)
-        {
-            EndGame();
-        }
     }
 
     private void UpdateXRPlacement()
@@ -331,7 +380,12 @@ public class GazeInactivityMenu : MonoBehaviour
         xrMenuRoot.transform.SetParent(anchor, false);
         xrMenuRoot.transform.localPosition = new Vector3(0f, 0f, MenuDistance);
         xrMenuRoot.transform.localRotation = Quaternion.identity;
-        xrMenuRoot.transform.localScale = Vector3.one;
+        xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
+
+        if (xrCanvas != null)
+        {
+            xrCanvas.worldCamera = FindMenuCamera();
+        }
     }
 
     private Transform FindMenuAnchor()
@@ -415,6 +469,49 @@ public class GazeInactivityMenu : MonoBehaviour
         buttonLabel.fontStyle = FontStyle.Bold;
         buttonLabel.color = Color.white;
         StretchToParent(labelObject.GetComponent<RectTransform>());
+    }
+
+    private GameObject CreateXRButton(
+        string name,
+        Transform parent,
+        string label,
+        Color color,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        UnityEngine.Events.UnityAction onClick)
+    {
+        GameObject buttonObject = CreateUIObject(name, parent);
+        Image buttonImage = buttonObject.AddComponent<Image>();
+        buttonImage.color = color;
+
+        Button button = buttonObject.AddComponent<Button>();
+        button.targetGraphic = buttonImage;
+        button.onClick.AddListener(onClick);
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = color;
+        colors.highlightedColor = Color.Lerp(color, Color.white, 0.18f);
+        colors.pressedColor = Color.Lerp(color, Color.black, 0.18f);
+        colors.selectedColor = colors.highlightedColor;
+        button.colors = colors;
+
+        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
+        buttonRect.anchorMin = anchorMin;
+        buttonRect.anchorMax = anchorMax;
+        buttonRect.offsetMin = Vector2.zero;
+        buttonRect.offsetMax = Vector2.zero;
+
+        GameObject labelObject = CreateUIObject(name + "Label", buttonObject.transform);
+        Text buttonLabel = labelObject.AddComponent<Text>();
+        buttonLabel.text = label;
+        buttonLabel.alignment = TextAnchor.MiddleCenter;
+        buttonLabel.font = GetBuiltInFont();
+        buttonLabel.fontSize = 32;
+        buttonLabel.fontStyle = FontStyle.Bold;
+        buttonLabel.color = Color.white;
+        StretchToParent(labelObject.GetComponent<RectTransform>());
+
+        return buttonObject;
     }
 
     private GameObject CreateQuad(string name, Transform parent, Vector3 localPosition, Vector3 localScale, Color color)
@@ -560,5 +657,22 @@ public class GazeInactivityMenu : MonoBehaviour
     private static void MarkRuntimeOnly(GameObject obj)
     {
         obj.hideFlags = HideFlags.HideInHierarchy;
+    }
+
+    private void EnsureOVRMenuRayDriver(GameObject eventSystemObject)
+    {
+        if (eventSystemObject == null)
+        {
+            return;
+        }
+
+        ovrMenuRayDriver = eventSystemObject.GetComponent<OVRMenuRayDriver>();
+        if (ovrMenuRayDriver == null)
+        {
+            ovrMenuRayDriver = eventSystemObject.AddComponent<OVRMenuRayDriver>();
+        }
+
+        EventSystem eventSystem = eventSystemObject.GetComponent<EventSystem>();
+        ovrMenuRayDriver.Configure(eventSystem);
     }
 }

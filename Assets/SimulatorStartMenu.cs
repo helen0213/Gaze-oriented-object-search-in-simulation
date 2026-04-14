@@ -25,6 +25,7 @@ public class SimulatorStartMenu : MonoBehaviour
 
     private Canvas desktopCanvas;
     private GameObject desktopPanel;
+    private Canvas xrCanvas;
 
     private GameObject xrMenuRoot;
     private GameObject xrPanelObject;
@@ -42,8 +43,7 @@ public class SimulatorStartMenu : MonoBehaviour
     private float menuRequestRealtime;
     private bool loggedAnchorMissing;
     private bool loggedAnchorReady;
-    private bool leftControllerPressedLastFrame;
-    private bool rightControllerPressedLastFrame;
+    private OVRMenuRayDriver ovrMenuRayDriver;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
     private static void ScheduleBootstrap()
@@ -115,6 +115,12 @@ public class SimulatorStartMenu : MonoBehaviour
             xrMenuRoot.SetActive(false);
         }
 
+        if (ovrMenuRayDriver != null)
+        {
+            ovrMenuRayDriver.SetVisualTarget(xrMenuRoot != null ? xrMenuRoot.transform : null);
+            ovrMenuRayDriver.SetXRMenuInputEnabled(false);
+        }
+
         TryFinalizeMenuPresentation();
     }
 
@@ -131,6 +137,12 @@ public class SimulatorStartMenu : MonoBehaviour
         if (xrMenuRoot != null)
         {
             xrMenuRoot.SetActive(false);
+        }
+
+        if (ovrMenuRayDriver != null)
+        {
+            ovrMenuRayDriver.SetVisualTarget(null);
+            ovrMenuRayDriver.SetXRMenuInputEnabled(false);
         }
 
         menuShown = false;
@@ -156,7 +168,6 @@ public class SimulatorStartMenu : MonoBehaviour
         if (!hasStarted)
         {
             TryFinalizeMenuPresentation();
-            HandleXRControllerInput();
 
             Keyboard keyboard = Keyboard.current;
             if (keyboard != null)
@@ -182,35 +193,6 @@ public class SimulatorStartMenu : MonoBehaviour
         }
     }
 
-    private void HandleXRControllerInput()
-    {
-        if (!xrMenuVisible || xrStartButtonObject == null || xrExitButtonObject == null)
-        {
-            return;
-        }
-
-        if (!XRMenuControllerInput.TryGetPressedButton(
-                xrStartButtonObject,
-                xrExitButtonObject,
-                ref leftControllerPressedLastFrame,
-                ref rightControllerPressedLastFrame,
-                out GameObject pressedButton))
-        {
-            return;
-        }
-
-        if (pressedButton == xrStartButtonObject)
-        {
-            StartSimulation();
-            return;
-        }
-
-        if (pressedButton == xrExitButtonObject)
-        {
-            ExitSimulation();
-        }
-    }
-
     private void TryFinalizeMenuPresentation()
     {
         if (!menuShown)
@@ -225,6 +207,11 @@ public class SimulatorStartMenu : MonoBehaviour
         {
             xrMenuRoot.SetActive(true);
             xrMenuVisible = true;
+            if (ovrMenuRayDriver != null)
+            {
+                ovrMenuRayDriver.SetVisualTarget(xrMenuRoot.transform);
+                ovrMenuRayDriver.SetXRMenuInputEnabled(true);
+            }
             Debug.Log("[SimulatorStartMenu] XR menu activated at world position "
                 + xrMenuRoot.transform.position + " using anchor "
                 + (menuAnchor != null ? menuAnchor.name : "null"));
@@ -251,6 +238,8 @@ public class SimulatorStartMenu : MonoBehaviour
     {
         if (FindFirstObjectByType<EventSystem>() != null)
         {
+            EventSystem existingSystem = FindFirstObjectByType<EventSystem>();
+            EnsureOVRMenuRayDriver(existingSystem.gameObject);
             return;
         }
 
@@ -259,6 +248,7 @@ public class SimulatorStartMenu : MonoBehaviour
         DontDestroyOnLoad(eventSystemObject);
         eventSystemObject.AddComponent<EventSystem>();
         eventSystemObject.AddComponent<InputSystemUIInputModule>();
+        EnsureOVRMenuRayDriver(eventSystemObject);
     }
 
     private void EnsureDesktopCanvas()
@@ -372,30 +362,58 @@ public class SimulatorStartMenu : MonoBehaviour
         MarkRuntimeOnly(xrMenuRoot);
         DontDestroyOnLoad(xrMenuRoot);
 
-        xrPanelObject = CreateQuad("XRPanel", xrMenuRoot.transform, Vector3.zero, new Vector3(1.35f, 0.82f, 1f), Color.black);
-        xrStartButtonObject = CreateQuad("XRStartButton", xrMenuRoot.transform, new Vector3(-0.25f, -0.18f, -0.01f), new Vector3(0.38f, 0.14f, 1f), new Color(0.18f, 0.62f, 0.24f, 1f));
-        xrExitButtonObject = CreateQuad("XRExitButton", xrMenuRoot.transform, new Vector3(0.25f, -0.18f, -0.01f), new Vector3(0.38f, 0.14f, 1f), new Color(0.65f, 0.18f, 0.18f, 1f));
+        xrCanvas = xrMenuRoot.AddComponent<Canvas>();
+        xrCanvas.renderMode = RenderMode.WorldSpace;
+        xrCanvas.sortingOrder = short.MaxValue;
 
-        xrTitleObject = CreateTextQuad(
-            "XRTitle",
-            xrMenuRoot.transform,
-            "CHOOSE AN OPTION",
-            new Vector3(0f, 0.22f, -0.02f),
-            new Vector3(1.1f, 0.12f, 1f));
+        RectTransform xrCanvasRect = xrCanvas.GetComponent<RectTransform>();
+        xrCanvasRect.sizeDelta = new Vector2(1000f, 620f);
+        xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
 
-        xrStartLabelObject = CreateTextQuad(
-            "XRStartLabel",
-            xrMenuRoot.transform,
-            "START",
-            new Vector3(-0.25f, -0.18f, -0.03f),
-            new Vector3(0.26f, 0.08f, 1f));
+        CanvasScaler xrScaler = xrMenuRoot.AddComponent<CanvasScaler>();
+        xrScaler.dynamicPixelsPerUnit = 24f;
 
-        xrExitLabelObject = CreateTextQuad(
-            "XRExitLabel",
-            xrMenuRoot.transform,
-            "EXIT",
-            new Vector3(0.25f, -0.18f, -0.03f),
-            new Vector3(0.2f, 0.08f, 1f));
+        xrMenuRoot.AddComponent<OVRRaycaster>();
+
+        xrPanelObject = CreateUIObject("XRPanel", xrMenuRoot.transform);
+        Image xrPanelImage = xrPanelObject.AddComponent<Image>();
+        xrPanelImage.color = new Color(0f, 0f, 0f, 0.94f);
+        StretchToParent(xrPanelObject.GetComponent<RectTransform>());
+
+        xrTitleObject = CreateUIObject("XRTitle", xrPanelObject.transform);
+        Text xrTitleText = xrTitleObject.AddComponent<Text>();
+        xrTitleText.text = "Choose an option";
+        xrTitleText.alignment = TextAnchor.MiddleCenter;
+        xrTitleText.font = GetBuiltInFont();
+        xrTitleText.fontSize = 56;
+        xrTitleText.fontStyle = FontStyle.Bold;
+        xrTitleText.color = Color.white;
+
+        RectTransform xrTitleRect = xrTitleObject.GetComponent<RectTransform>();
+        xrTitleRect.anchorMin = new Vector2(0.2f, 0.62f);
+        xrTitleRect.anchorMax = new Vector2(0.8f, 0.8f);
+        xrTitleRect.offsetMin = Vector2.zero;
+        xrTitleRect.offsetMax = Vector2.zero;
+
+        xrStartButtonObject = CreateXRButton(
+            "XRStartButton",
+            xrPanelObject.transform,
+            "Start",
+            new Color(0.18f, 0.62f, 0.24f, 1f),
+            new Vector2(0.14f, 0.22f),
+            new Vector2(0.44f, 0.4f),
+            StartSimulation,
+            out xrStartLabelObject);
+
+        xrExitButtonObject = CreateXRButton(
+            "XRExitButton",
+            xrPanelObject.transform,
+            "Exit",
+            new Color(0.65f, 0.18f, 0.18f, 1f),
+            new Vector2(0.56f, 0.22f),
+            new Vector2(0.86f, 0.4f),
+            ExitSimulation,
+            out xrExitLabelObject);
     }
 
     private bool UpdateMenuPlacement()
@@ -431,7 +449,12 @@ public class SimulatorStartMenu : MonoBehaviour
         {
             xrMenuRoot.transform.localPosition = new Vector3(0f, 0f, MenuDistance);
             xrMenuRoot.transform.localRotation = Quaternion.identity;
-            xrMenuRoot.transform.localScale = Vector3.one;
+            xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
+        }
+
+        if (xrCanvas != null)
+        {
+            xrCanvas.worldCamera = FindMenuCamera();
         }
 
         return true;
@@ -548,6 +571,50 @@ public class SimulatorStartMenu : MonoBehaviour
         return quad;
     }
 
+    private GameObject CreateXRButton(
+        string name,
+        Transform parent,
+        string label,
+        Color color,
+        Vector2 anchorMin,
+        Vector2 anchorMax,
+        UnityEngine.Events.UnityAction onClick,
+        out GameObject labelObject)
+    {
+        GameObject buttonObject = CreateUIObject(name, parent);
+        Image buttonImage = buttonObject.AddComponent<Image>();
+        buttonImage.color = color;
+
+        Button button = buttonObject.AddComponent<Button>();
+        button.targetGraphic = buttonImage;
+        button.onClick.AddListener(onClick);
+
+        ColorBlock colors = button.colors;
+        colors.normalColor = color;
+        colors.highlightedColor = Color.Lerp(color, Color.white, 0.12f);
+        colors.pressedColor = Color.Lerp(color, Color.black, 0.25f);
+        colors.selectedColor = colors.highlightedColor;
+        button.colors = colors;
+
+        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
+        buttonRect.anchorMin = anchorMin;
+        buttonRect.anchorMax = anchorMax;
+        buttonRect.offsetMin = Vector2.zero;
+        buttonRect.offsetMax = Vector2.zero;
+
+        labelObject = CreateUIObject(name + "Label", buttonObject.transform);
+        Text buttonLabel = labelObject.AddComponent<Text>();
+        buttonLabel.text = label;
+        buttonLabel.alignment = TextAnchor.MiddleCenter;
+        buttonLabel.font = GetBuiltInFont();
+        buttonLabel.fontSize = 38;
+        buttonLabel.fontStyle = FontStyle.Bold;
+        buttonLabel.color = Color.white;
+        StretchToParent(labelObject.GetComponent<RectTransform>());
+
+        return buttonObject;
+    }
+
     private Texture2D BuildBlockTextTexture(string text, Color foreground, Color background, int pixelSize, int letterSpacing)
     {
         string upperText = text.ToUpperInvariant();
@@ -623,5 +690,22 @@ public class SimulatorStartMenu : MonoBehaviour
     private static void MarkRuntimeOnly(GameObject obj)
     {
         obj.hideFlags = HideFlags.HideInHierarchy;
+    }
+
+    private void EnsureOVRMenuRayDriver(GameObject eventSystemObject)
+    {
+        if (eventSystemObject == null)
+        {
+            return;
+        }
+
+        ovrMenuRayDriver = eventSystemObject.GetComponent<OVRMenuRayDriver>();
+        if (ovrMenuRayDriver == null)
+        {
+            ovrMenuRayDriver = eventSystemObject.AddComponent<OVRMenuRayDriver>();
+        }
+
+        EventSystem eventSystem = eventSystemObject.GetComponent<EventSystem>();
+        ovrMenuRayDriver.Configure(eventSystem);
     }
 }
