@@ -462,35 +462,50 @@ public class SimulatorStartMenu : MonoBehaviour
 
     private Transform FindMenuAnchor()
     {
+        Camera trackedCamera = FindTrackedMenuCamera();
+        if (trackedCamera != null)
+        {
+            return trackedCamera.transform;
+        }
+
         GameObject centerEye = GameObject.Find("CenterEyeAnchor");
         if (centerEye != null)
         {
             return centerEye.transform;
         }
 
-        GameObject rig = GameObject.Find("[BuildingBlock] Camera Rig");
-        if (rig != null)
-        {
-            return rig.transform;
-        }
-
         GameObject ovrRig = GameObject.Find("OVRCameraRig");
         if (ovrRig != null)
         {
-            return ovrRig.transform;
+            Transform centerEyeAnchor = FindChildRecursive(ovrRig.transform, "CenterEyeAnchor");
+            if (centerEyeAnchor != null)
+            {
+                return centerEyeAnchor;
+            }
+        }
+
+        GameObject rig = GameObject.Find("[BuildingBlock] Camera Rig");
+        if (rig != null)
+        {
+            Transform centerEyeAnchor = FindChildRecursive(rig.transform, "CenterEyeAnchor");
+            if (centerEyeAnchor != null)
+            {
+                return centerEyeAnchor;
+            }
         }
 
         Camera menuCamera = FindMenuCamera();
-        if (menuCamera != null)
-        {
-            return menuCamera.transform;
-        }
-
-        return null;
+        return menuCamera != null ? menuCamera.transform : null;
     }
 
     private Camera FindMenuCamera()
     {
+        Camera trackedCamera = FindTrackedMenuCamera();
+        if (trackedCamera != null)
+        {
+            return trackedCamera;
+        }
+
         GameObject centerEye = GameObject.Find("CenterEyeAnchor");
         if (centerEye != null)
         {
@@ -507,6 +522,56 @@ public class SimulatorStartMenu : MonoBehaviour
         }
 
         return FindFirstObjectByType<Camera>();
+    }
+
+    private static Camera FindTrackedMenuCamera()
+    {
+        Camera[] cameras = FindObjectsByType<Camera>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        Camera fallbackCamera = null;
+
+        foreach (Camera camera in cameras)
+        {
+            if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            if (fallbackCamera == null)
+            {
+                fallbackCamera = camera;
+            }
+
+            if (camera.stereoTargetEye != StereoTargetEyeMask.None)
+            {
+                return camera;
+            }
+        }
+
+        return fallbackCamera;
+    }
+
+    private static Transform FindChildRecursive(Transform root, string targetName)
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        if (root.name == targetName)
+        {
+            return root;
+        }
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform match = FindChildRecursive(root.GetChild(i), targetName);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private static GameObject CreateUIObject(string name, Transform parent)

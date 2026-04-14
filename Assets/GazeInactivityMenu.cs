@@ -390,10 +390,10 @@ public class GazeInactivityMenu : MonoBehaviour
 
     private Transform FindMenuAnchor()
     {
-        Camera menuCamera = FindMenuCamera();
-        if (menuCamera != null)
+        Camera trackedCamera = FindTrackedMenuCamera();
+        if (trackedCamera != null)
         {
-            return menuCamera.transform;
+            return trackedCamera.transform;
         }
 
         GameObject centerEye = GameObject.Find("CenterEyeAnchor");
@@ -402,17 +402,38 @@ public class GazeInactivityMenu : MonoBehaviour
             return centerEye.transform;
         }
 
+        GameObject ovrRig = GameObject.Find("OVRCameraRig");
+        if (ovrRig != null)
+        {
+            Transform centerEyeAnchor = FindChildRecursive(ovrRig.transform, "CenterEyeAnchor");
+            if (centerEyeAnchor != null)
+            {
+                return centerEyeAnchor;
+            }
+        }
+
         GameObject rig = GameObject.Find("[BuildingBlock] Camera Rig");
         if (rig != null)
         {
-            return rig.transform;
+            Transform centerEyeAnchor = FindChildRecursive(rig.transform, "CenterEyeAnchor");
+            if (centerEyeAnchor != null)
+            {
+                return centerEyeAnchor;
+            }
         }
 
-        return null;
+        Camera menuCamera = FindMenuCamera();
+        return menuCamera != null ? menuCamera.transform : null;
     }
 
     private Camera FindMenuCamera()
     {
+        Camera trackedCamera = FindTrackedMenuCamera();
+        if (trackedCamera != null)
+        {
+            return trackedCamera;
+        }
+
         GameObject centerEye = GameObject.Find("CenterEyeAnchor");
         if (centerEye != null)
         {
@@ -429,6 +450,56 @@ public class GazeInactivityMenu : MonoBehaviour
         }
 
         return FindFirstObjectByType<Camera>();
+    }
+
+    private static Camera FindTrackedMenuCamera()
+    {
+        Camera[] cameras = FindObjectsByType<Camera>(FindObjectsInactive.Exclude, FindObjectsSortMode.None);
+        Camera fallbackCamera = null;
+
+        foreach (Camera camera in cameras)
+        {
+            if (camera == null || !camera.enabled || !camera.gameObject.activeInHierarchy)
+            {
+                continue;
+            }
+
+            if (fallbackCamera == null)
+            {
+                fallbackCamera = camera;
+            }
+
+            if (camera.stereoTargetEye != StereoTargetEyeMask.None)
+            {
+                return camera;
+            }
+        }
+
+        return fallbackCamera;
+    }
+
+    private static Transform FindChildRecursive(Transform root, string targetName)
+    {
+        if (root == null)
+        {
+            return null;
+        }
+
+        if (root.name == targetName)
+        {
+            return root;
+        }
+
+        for (int i = 0; i < root.childCount; i++)
+        {
+            Transform match = FindChildRecursive(root.GetChild(i), targetName);
+            if (match != null)
+            {
+                return match;
+            }
+        }
+
+        return null;
     }
 
     private void CreateDesktopButton(
