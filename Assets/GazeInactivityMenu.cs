@@ -11,6 +11,8 @@ public class GazeInactivityMenu : MonoBehaviour
 
     private const float MenuDistance = 1.2f;
     private const float InactivitySeconds = 10f;
+    private const float CreatureMenuOffsetX = 3f;
+    private const float CreatureMenuHeight = 1.2f;
 
     private GazeTargetDetector detector;
     private Canvas desktopCanvas;
@@ -22,6 +24,7 @@ public class GazeInactivityMenu : MonoBehaviour
     private bool menuOpen;
     private GameObject xrContinueButtonObject;
     private GameObject xrEndButtonObject;
+    private bool loggedPlacementDetails;
     private OVRMenuRayDriver ovrMenuRayDriver;
 
     public static void EnsureCreated()
@@ -90,6 +93,7 @@ public class GazeInactivityMenu : MonoBehaviour
 
         menuOpen = true;
         idleTimer = 0f;
+        loggedPlacementDetails = false;
         Time.timeScale = 0f;
         AudioListener.pause = true;
 
@@ -377,10 +381,35 @@ public class GazeInactivityMenu : MonoBehaviour
             return;
         }
 
-        xrMenuRoot.transform.SetParent(anchor, false);
-        xrMenuRoot.transform.localPosition = new Vector3(0f, 0f, MenuDistance);
-        xrMenuRoot.transform.localRotation = Quaternion.identity;
+        Camera menuCamera = FindMenuCamera();
+        Transform reference = FindCreatureReferenceTransform();
+        if (reference == null)
+        {
+            reference = menuCamera != null ? menuCamera.transform : anchor;
+        }
+
+        Vector3 menuPosition = GetMenuWorldPosition(reference, menuCamera);
+        Vector3 lookDirection = GetMenuLookDirection(menuPosition, reference, menuCamera);
+
+        xrMenuRoot.transform.SetParent(null, true);
+        xrMenuRoot.transform.position = menuPosition;
+        xrMenuRoot.transform.rotation = Quaternion.LookRotation(lookDirection, reference.up);
         xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
+
+        if (!loggedPlacementDetails)
+        {
+            string referenceName = reference != null ? reference.name : "null";
+            string cameraName = menuCamera != null ? menuCamera.name : "null";
+            Vector3 cameraPosition = menuCamera != null ? menuCamera.transform.position : Vector3.zero;
+            Debug.Log("[GazeInactivityMenu] Placement details: reference=" + referenceName
+                + ", referencePos=" + (reference != null ? reference.position.ToString() : "null")
+                + ", camera=" + cameraName
+                + ", cameraPos=" + cameraPosition
+                + ", menuPos=" + menuPosition
+                + ", menuForward=" + xrMenuRoot.transform.forward
+                + ", creatureAnchorUsed=" + (FindCreatureReferenceTransform() != null));
+            loggedPlacementDetails = true;
+        }
 
         if (xrCanvas != null)
         {
@@ -500,6 +529,64 @@ public class GazeInactivityMenu : MonoBehaviour
         }
 
         return null;
+    }
+
+    private static Transform FindCreatureReferenceTransform()
+    {
+        GazeDrivenCreatureController gazeController = FindFirstObjectByType<GazeDrivenCreatureController>();
+        if (gazeController != null)
+        {
+            return gazeController.creatureRoot != null ? gazeController.creatureRoot : gazeController.transform;
+        }
+
+        ActionDrivenCreatureController actionController = FindFirstObjectByType<ActionDrivenCreatureController>();
+        if (actionController != null)
+        {
+            return actionController.creatureRoot != null ? actionController.creatureRoot : actionController.transform;
+        }
+
+        GameObject tiger = GameObject.Find("Tiger");
+        if (tiger != null)
+        {
+            return tiger.transform;
+        }
+
+        return null;
+    }
+
+    private static Vector3 GetMenuWorldPosition(Transform reference, Camera menuCamera)
+    {
+        if (reference == null)
+        {
+            return Vector3.zero;
+        }
+
+        if (reference.GetComponent<Camera>() != null)
+        {
+            return reference.position + reference.forward * MenuDistance;
+        }
+
+        Vector3 basePosition = reference.position + reference.right * CreatureMenuOffsetX;
+        basePosition.y += CreatureMenuHeight;
+
+        if (menuCamera != null)
+        {
+            basePosition.y = Mathf.Max(basePosition.y, menuCamera.transform.position.y);
+        }
+
+        return basePosition;
+    }
+
+    private static Vector3 GetMenuLookDirection(Vector3 menuPosition, Transform reference, Camera menuCamera)
+    {
+        Vector3 lookTarget = menuCamera != null ? menuCamera.transform.position : reference.position + Vector3.up * CreatureMenuHeight;
+        Vector3 lookDirection = lookTarget - menuPosition;
+        if (lookDirection.sqrMagnitude < 0.0001f)
+        {
+            lookDirection = reference != null ? reference.forward : Vector3.forward;
+        }
+
+        return lookDirection.normalized;
     }
 
     private void CreateDesktopButton(

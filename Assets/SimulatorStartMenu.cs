@@ -22,6 +22,8 @@ public class SimulatorStartMenu : MonoBehaviour
 
     private const float MenuDistance = 1.35f;
     private const float AnchorWaitTimeout = 1.5f;
+    private const float CreatureMenuOffsetX = 3f;
+    private const float CreatureMenuHeight = 1.2f;
 
     private Canvas desktopCanvas;
     private GameObject desktopPanel;
@@ -43,6 +45,7 @@ public class SimulatorStartMenu : MonoBehaviour
     private float menuRequestRealtime;
     private bool loggedAnchorMissing;
     private bool loggedAnchorReady;
+    private bool loggedPlacementDetails;
     private OVRMenuRayDriver ovrMenuRayDriver;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -104,6 +107,7 @@ public class SimulatorStartMenu : MonoBehaviour
         menuRequestRealtime = Time.realtimeSinceStartup;
         loggedAnchorMissing = false;
         loggedAnchorReady = false;
+        loggedPlacementDetails = false;
 
         if (desktopPanel != null)
         {
@@ -439,17 +443,39 @@ public class SimulatorStartMenu : MonoBehaviour
         if (menuAnchor != anchor)
         {
             menuAnchor = anchor;
-            if (xrMenuRoot != null)
-            {
-                xrMenuRoot.transform.SetParent(menuAnchor, false);
-            }
         }
 
         if (xrMenuRoot != null)
         {
-            xrMenuRoot.transform.localPosition = new Vector3(0f, 0f, MenuDistance);
-            xrMenuRoot.transform.localRotation = Quaternion.identity;
+            Camera menuCamera = FindMenuCamera();
+            Transform reference = FindCreatureReferenceTransform();
+            if (reference == null)
+            {
+                reference = menuCamera != null ? menuCamera.transform : menuAnchor;
+            }
+
+            Vector3 menuPosition = GetMenuWorldPosition(reference, menuCamera);
+            Vector3 lookDirection = GetMenuLookDirection(menuPosition, reference, menuCamera);
+
+            xrMenuRoot.transform.SetParent(null, true);
+            xrMenuRoot.transform.position = menuPosition;
+            xrMenuRoot.transform.rotation = Quaternion.LookRotation(lookDirection, reference.up);
             xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
+
+            if (!loggedPlacementDetails)
+            {
+                string referenceName = reference != null ? reference.name : "null";
+                string cameraName = menuCamera != null ? menuCamera.name : "null";
+                Vector3 cameraPosition = menuCamera != null ? menuCamera.transform.position : Vector3.zero;
+                Debug.Log("[SimulatorStartMenu] Placement details: reference=" + referenceName
+                    + ", referencePos=" + (reference != null ? reference.position.ToString() : "null")
+                    + ", camera=" + cameraName
+                    + ", cameraPos=" + cameraPosition
+                    + ", menuPos=" + menuPosition
+                    + ", menuForward=" + xrMenuRoot.transform.forward
+                    + ", creatureAnchorUsed=" + (FindCreatureReferenceTransform() != null));
+                loggedPlacementDetails = true;
+            }
         }
 
         if (xrCanvas != null)
@@ -572,6 +598,64 @@ public class SimulatorStartMenu : MonoBehaviour
         }
 
         return null;
+    }
+
+    private static Transform FindCreatureReferenceTransform()
+    {
+        GazeDrivenCreatureController gazeController = FindFirstObjectByType<GazeDrivenCreatureController>();
+        if (gazeController != null)
+        {
+            return gazeController.creatureRoot != null ? gazeController.creatureRoot : gazeController.transform;
+        }
+
+        ActionDrivenCreatureController actionController = FindFirstObjectByType<ActionDrivenCreatureController>();
+        if (actionController != null)
+        {
+            return actionController.creatureRoot != null ? actionController.creatureRoot : actionController.transform;
+        }
+
+        GameObject tiger = GameObject.Find("Tiger");
+        if (tiger != null)
+        {
+            return tiger.transform;
+        }
+
+        return null;
+    }
+
+    private static Vector3 GetMenuWorldPosition(Transform reference, Camera menuCamera)
+    {
+        if (reference == null)
+        {
+            return Vector3.zero;
+        }
+
+        if (reference.GetComponent<Camera>() != null)
+        {
+            return reference.position + reference.forward * MenuDistance;
+        }
+
+        Vector3 basePosition = reference.position + reference.right * CreatureMenuOffsetX;
+        basePosition.y += CreatureMenuHeight;
+
+        if (menuCamera != null)
+        {
+            basePosition.y = Mathf.Max(basePosition.y, menuCamera.transform.position.y);
+        }
+
+        return basePosition;
+    }
+
+    private static Vector3 GetMenuLookDirection(Vector3 menuPosition, Transform reference, Camera menuCamera)
+    {
+        Vector3 lookTarget = menuCamera != null ? menuCamera.transform.position : reference.position + Vector3.up * CreatureMenuHeight;
+        Vector3 lookDirection = lookTarget - menuPosition;
+        if (lookDirection.sqrMagnitude < 0.0001f)
+        {
+            lookDirection = reference != null ? reference.forward : Vector3.forward;
+        }
+
+        return lookDirection.normalized;
     }
 
     private static GameObject CreateUIObject(string name, Transform parent)

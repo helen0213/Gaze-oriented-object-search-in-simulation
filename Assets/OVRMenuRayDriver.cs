@@ -6,6 +6,21 @@ public class OVRMenuRayDriver : MonoBehaviour
 {
     private const OVRInput.Button ClickButton = OVRInput.Button.One;
     private const float DefaultRayLength = 3.5f;
+    private static readonly string[] RightControllerNames =
+    {
+        "RightControllerInHandAnchor",
+        "RightControllerAnchor",
+        "RightHandOnControllerAnchor",
+        "RightHandAnchor"
+    };
+
+    private static readonly string[] LeftControllerNames =
+    {
+        "LeftControllerInHandAnchor",
+        "LeftControllerAnchor",
+        "LeftHandOnControllerAnchor",
+        "LeftHandAnchor"
+    };
 
     private OVRInputModule ovrInputModule;
     private InputSystemUIInputModule inputSystemModule;
@@ -90,7 +105,7 @@ public class OVRMenuRayDriver : MonoBehaviour
         if (IsControllerActivelyPressing(OVRInput.Controller.RTouch))
         {
             controllerIsActive = true;
-            Transform rightPressed = FindControllerTransform("RightControllerAnchor", "RightHandOnControllerAnchor");
+            Transform rightPressed = FindControllerTransform(RightControllerNames);
             if (rightPressed != null)
             {
                 return rightPressed;
@@ -100,7 +115,7 @@ public class OVRMenuRayDriver : MonoBehaviour
         if (IsControllerActivelyPressing(OVRInput.Controller.LTouch))
         {
             controllerIsActive = true;
-            Transform leftPressed = FindControllerTransform("LeftControllerAnchor", "LeftHandOnControllerAnchor");
+            Transform leftPressed = FindControllerTransform(LeftControllerNames);
             if (leftPressed != null)
             {
                 return leftPressed;
@@ -109,13 +124,13 @@ public class OVRMenuRayDriver : MonoBehaviour
 
         controllerIsActive = false;
 
-        Transform right = FindControllerTransform("RightControllerAnchor", "RightHandOnControllerAnchor");
+        Transform right = FindControllerTransform(RightControllerNames);
         if (right != null)
         {
             return right;
         }
 
-        return FindControllerTransform("LeftControllerAnchor", "LeftHandOnControllerAnchor");
+        return FindControllerTransform(LeftControllerNames);
     }
 
     private static bool IsControllerActivelyPressing(OVRInput.Controller controller)
@@ -125,16 +140,18 @@ public class OVRMenuRayDriver : MonoBehaviour
             || OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, controller) > 0.5f;
     }
 
-    private static Transform FindControllerTransform(string primaryName, string fallbackName)
+    private static Transform FindControllerTransform(params string[] candidateNames)
     {
-        GameObject primary = GameObject.Find(primaryName);
-        if (primary != null)
+        for (int i = 0; i < candidateNames.Length; i++)
         {
-            return primary.transform;
+            GameObject candidate = GameObject.Find(candidateNames[i]);
+            if (candidate != null)
+            {
+                return candidate.transform;
+            }
         }
 
-        GameObject fallback = GameObject.Find(fallbackName);
-        return fallback != null ? fallback.transform : null;
+        return null;
     }
 
     private void EnsureVisuals()
