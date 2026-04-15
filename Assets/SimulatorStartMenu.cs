@@ -22,7 +22,7 @@ public class SimulatorStartMenu : MonoBehaviour
 
     private const float MenuDistance = 1.35f;
     private const float AnchorWaitTimeout = 1.5f;
-    private const float CreatureMenuOffsetX = 3f;
+    private const float CreatureMenuOffsetX = 3.5f;
     private const float CreatureMenuHeight = 1.2f;
 
     private Canvas desktopCanvas;

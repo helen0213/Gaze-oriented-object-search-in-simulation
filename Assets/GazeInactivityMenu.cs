@@ -11,7 +11,7 @@ public class GazeInactivityMenu : MonoBehaviour
 
     private const float MenuDistance = 1.2f;
     private const float InactivitySeconds = 10f;
-    private const float CreatureMenuOffsetX = 3f;
+    private const float CreatureMenuOffsetX = 3.5f;
     private const float CreatureMenuHeight = 1.2f;
 
     private GazeTargetDetector detector;

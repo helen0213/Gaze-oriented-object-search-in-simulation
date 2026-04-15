@@ -4,7 +4,7 @@ using UnityEngine.InputSystem.UI;
 
 public class OVRMenuRayDriver : MonoBehaviour
 {
-    private const OVRInput.Button ClickButton = OVRInput.Button.One;
+    private const OVRInput.Button ClickButton = OVRInput.Button.SecondaryIndexTrigger;
     private const float DefaultRayLength = 3.5f;
     private static readonly string[] RightControllerNames =
     {
@@ -137,7 +137,9 @@ public class OVRMenuRayDriver : MonoBehaviour
     {
         return OVRInput.Get(OVRInput.Button.One, controller)
             || OVRInput.Get(OVRInput.Button.PrimaryIndexTrigger, controller)
-            || OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, controller) > 0.5f;
+            || OVRInput.Get(OVRInput.Button.SecondaryIndexTrigger, controller)
+            || OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, controller) > 0.5f
+            || OVRInput.Get(OVRInput.Axis1D.SecondaryIndexTrigger, controller) > 0.5f;
     }
 
     private static Transform FindControllerTransform(params string[] candidateNames)
@@ -174,7 +176,14 @@ public class OVRMenuRayDriver : MonoBehaviour
         lineRenderer.alignment = LineAlignment.View;
         lineRenderer.startWidth = 0.0035f;
         lineRenderer.endWidth = 0.002f;
-        lineRenderer.material = new Material(Shader.Find("Sprites/Default"));
+        Material lineMaterial = CreateRuntimeMaterial(
+            "Sprites/Default",
+            "Universal Render Pipeline/Unlit",
+            "Unlit/Color");
+        if (lineMaterial != null)
+        {
+            lineRenderer.material = lineMaterial;
+        }
         lineRenderer.startColor = new Color(0.4f, 0.95f, 1f, 0.95f);
         lineRenderer.endColor = new Color(1f, 1f, 1f, 0.95f);
 
@@ -191,10 +200,32 @@ public class OVRMenuRayDriver : MonoBehaviour
         }
 
         MeshRenderer endRenderer = endObject.GetComponent<MeshRenderer>();
-        endRenderer.sharedMaterial = new Material(Shader.Find("Unlit/Color"));
-        endRenderer.sharedMaterial.color = new Color(1f, 1f, 1f, 0.95f);
+        Material endMaterial = CreateRuntimeMaterial(
+            "Unlit/Color",
+            "Universal Render Pipeline/Unlit",
+            "Sprites/Default");
+        if (endMaterial != null)
+        {
+            endRenderer.sharedMaterial = endMaterial;
+            endRenderer.sharedMaterial.color = new Color(1f, 1f, 1f, 0.95f);
+        }
 
         rayEndVisual = endObject.transform;
+    }
+
+    private static Material CreateRuntimeMaterial(params string[] shaderNames)
+    {
+        for (int i = 0; i < shaderNames.Length; i++)
+        {
+            Shader shader = Shader.Find(shaderNames[i]);
+            if (shader != null)
+            {
+                return new Material(shader);
+            }
+        }
+
+        Debug.LogError("[OVRMenuRayDriver] Could not find any runtime shader for menu ray visuals.");
+        return null;
     }
 
     private void SetVisualsActive(bool active)
