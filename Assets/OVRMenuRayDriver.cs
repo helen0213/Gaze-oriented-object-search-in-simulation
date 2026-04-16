@@ -4,7 +4,10 @@ using UnityEngine.InputSystem.UI;
 
 public class OVRMenuRayDriver : MonoBehaviour
 {
-    private const OVRInput.Button ClickButton = OVRInput.Button.SecondaryIndexTrigger;
+    private const OVRInput.Button ClickButtons =
+        OVRInput.Button.PrimaryIndexTrigger
+        | OVRInput.Button.SecondaryIndexTrigger
+        | OVRInput.Button.One;
     private const float DefaultRayLength = 3.5f;
     private static readonly string[] RightControllerNames =
     {
@@ -28,7 +31,6 @@ public class OVRMenuRayDriver : MonoBehaviour
     private Transform visualTarget;
     private LineRenderer lineRenderer;
     private Transform rayEndVisual;
-    private bool hasSeenControllerActivity;
 
     public void Configure(EventSystem eventSystem)
     {
@@ -44,7 +46,7 @@ public class OVRMenuRayDriver : MonoBehaviour
         }
 
         inputSystemModule = eventSystem.GetComponent<InputSystemUIInputModule>();
-        ovrInputModule.joyPadClickButton = ClickButton;
+        ovrInputModule.joyPadClickButton = ClickButtons;
         ovrInputModule.enabled = false;
 
         EnsureVisuals();
@@ -54,7 +56,6 @@ public class OVRMenuRayDriver : MonoBehaviour
     public void SetXRMenuInputEnabled(bool enabled)
     {
         xrMenuInputEnabled = enabled;
-        hasSeenControllerActivity = false;
 
         if (ovrInputModule == null)
         {
@@ -83,13 +84,8 @@ public class OVRMenuRayDriver : MonoBehaviour
             return;
         }
 
-        Transform controllerTransform = GetPreferredControllerTransform(out bool controllerIsActive);
-        if (controllerIsActive)
-        {
-            hasSeenControllerActivity = true;
-        }
-
-        if (!hasSeenControllerActivity)
+        Transform controllerTransform = GetPreferredControllerTransform(out bool controllerAvailable);
+        if (!controllerAvailable || controllerTransform == null)
         {
             ovrInputModule.rayTransform = null;
             SetVisualsActive(false);
@@ -127,10 +123,13 @@ public class OVRMenuRayDriver : MonoBehaviour
         Transform right = FindControllerTransform(RightControllerNames);
         if (right != null)
         {
+            controllerIsActive = true;
             return right;
         }
 
-        return FindControllerTransform(LeftControllerNames);
+        Transform left = FindControllerTransform(LeftControllerNames);
+        controllerIsActive = left != null;
+        return left;
     }
 
     private static bool IsControllerActivelyPressing(OVRInput.Controller controller)

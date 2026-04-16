@@ -3,6 +3,7 @@ using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+using UnityEngine.XR;
 
 public class SimulatorStartMenu : MonoBehaviour
 {
@@ -46,6 +47,7 @@ public class SimulatorStartMenu : MonoBehaviour
     private bool loggedAnchorMissing;
     private bool loggedAnchorReady;
     private bool loggedPlacementDetails;
+    private bool recenterAttempted;
     private OVRMenuRayDriver ovrMenuRayDriver;
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -97,6 +99,7 @@ public class SimulatorStartMenu : MonoBehaviour
             return;
         }
 
+        TryRecenterTrackingOrigin();
         EnsureEventSystem();
         EnsureDesktopCanvas();
         EnsureXRMenu();
@@ -375,7 +378,7 @@ public class SimulatorStartMenu : MonoBehaviour
         xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
 
         CanvasScaler xrScaler = xrMenuRoot.AddComponent<CanvasScaler>();
-        xrScaler.dynamicPixelsPerUnit = 24f;
+        xrScaler.dynamicPixelsPerUnit = 96f;
 
         xrMenuRoot.AddComponent<OVRRaycaster>();
 
@@ -448,18 +451,14 @@ public class SimulatorStartMenu : MonoBehaviour
         if (xrMenuRoot != null)
         {
             Camera menuCamera = FindMenuCamera();
-            Transform reference = FindCreatureReferenceTransform();
-            if (reference == null)
-            {
-                reference = menuCamera != null ? menuCamera.transform : menuAnchor;
-            }
+            Transform reference = menuCamera != null ? menuCamera.transform : menuAnchor;
 
             Vector3 menuPosition = GetMenuWorldPosition(reference, menuCamera);
             Vector3 lookDirection = GetMenuLookDirection(menuPosition, reference, menuCamera);
 
             xrMenuRoot.transform.SetParent(null, true);
             xrMenuRoot.transform.position = menuPosition;
-            xrMenuRoot.transform.rotation = Quaternion.LookRotation(lookDirection, reference.up);
+            xrMenuRoot.transform.rotation = Quaternion.LookRotation(-lookDirection, reference.up);
             xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
 
             if (!loggedPlacementDetails)
@@ -472,8 +471,7 @@ public class SimulatorStartMenu : MonoBehaviour
                     + ", camera=" + cameraName
                     + ", cameraPos=" + cameraPosition
                     + ", menuPos=" + menuPosition
-                    + ", menuForward=" + xrMenuRoot.transform.forward
-                    + ", creatureAnchorUsed=" + (FindCreatureReferenceTransform() != null));
+                    + ", menuForward=" + xrMenuRoot.transform.forward);
                 loggedPlacementDetails = true;
             }
         }
@@ -630,25 +628,12 @@ public class SimulatorStartMenu : MonoBehaviour
             return Vector3.zero;
         }
 
-        if (reference.GetComponent<Camera>() != null)
-        {
-            return reference.position + reference.forward * MenuDistance;
-        }
-
-        Vector3 basePosition = reference.position + reference.right * CreatureMenuOffsetX;
-        basePosition.y += CreatureMenuHeight;
-
-        if (menuCamera != null)
-        {
-            basePosition.y = Mathf.Max(basePosition.y, menuCamera.transform.position.y);
-        }
-
-        return basePosition;
+        return reference.position + reference.forward * MenuDistance;
     }
 
     private static Vector3 GetMenuLookDirection(Vector3 menuPosition, Transform reference, Camera menuCamera)
     {
-        Vector3 lookTarget = menuCamera != null ? menuCamera.transform.position : reference.position + Vector3.up * CreatureMenuHeight;
+        Vector3 lookTarget = menuCamera != null ? menuCamera.transform.position : reference.position;
         Vector3 lookDirection = lookTarget - menuPosition;
         if (lookDirection.sqrMagnitude < 0.0001f)
         {
@@ -839,6 +824,30 @@ public class SimulatorStartMenu : MonoBehaviour
     private static void MarkRuntimeOnly(GameObject obj)
     {
         obj.hideFlags = HideFlags.HideInHierarchy;
+    }
+
+    private void TryRecenterTrackingOrigin()
+    {
+        if (recenterAttempted)
+        {
+            return;
+        }
+
+        recenterAttempted = true;
+
+        try
+        {
+            if (OVRManager.display != null)
+            {
+                OVRManager.display.RecenterPose();
+            }
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogWarning("[SimulatorStartMenu] OVR recenter failed: " + exception.Message);
+        }
+
+        InputTracking.Recenter();
     }
 
     private void EnsureOVRMenuRayDriver(GameObject eventSystemObject)
