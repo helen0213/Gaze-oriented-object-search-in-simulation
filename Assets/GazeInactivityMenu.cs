@@ -1,3 +1,4 @@
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -320,12 +321,11 @@ public class GazeInactivityMenu : MonoBehaviour
         accentRect.offsetMax = Vector2.zero;
 
         GameObject title = CreateUIObject("XRTitle", xrPanel.transform);
-        Text titleText = title.AddComponent<Text>();
+        TextMeshProUGUI titleText = title.AddComponent<TextMeshProUGUI>();
         titleText.text = "Need a moment?";
-        titleText.alignment = TextAnchor.MiddleCenter;
-        titleText.font = GetBuiltInFont();
-        titleText.fontSize = 432;
-        titleText.fontStyle = FontStyle.Bold;
+        titleText.alignment = TextAlignmentOptions.Center;
+        titleText.fontSize = 48;
+        titleText.fontStyle = FontStyles.Bold;
         titleText.color = Color.white;
 
         RectTransform titleRect = title.GetComponent<RectTransform>();
@@ -335,11 +335,10 @@ public class GazeInactivityMenu : MonoBehaviour
         titleRect.offsetMax = Vector2.zero;
 
         GameObject subtitle = CreateUIObject("XRSubtitle", xrPanel.transform);
-        Text subtitleText = subtitle.AddComponent<Text>();
+        TextMeshProUGUI subtitleText = subtitle.AddComponent<TextMeshProUGUI>();
         subtitleText.text = "We have not detected gaze on any target for 10 seconds.";
-        subtitleText.alignment = TextAnchor.MiddleCenter;
-        subtitleText.font = GetBuiltInFont();
-        subtitleText.fontSize = 224;
+        subtitleText.alignment = TextAlignmentOptions.Center;
+        subtitleText.fontSize = 29;
         subtitleText.color = new Color(0.8f, 0.87f, 0.92f, 1f);
 
         RectTransform subtitleRect = subtitle.GetComponent<RectTransform>();
@@ -661,12 +660,11 @@ public class GazeInactivityMenu : MonoBehaviour
         buttonRect.offsetMax = Vector2.zero;
 
         GameObject labelObject = CreateUIObject(name + "Label", buttonObject.transform);
-        Text buttonLabel = labelObject.AddComponent<Text>();
+        TextMeshProUGUI buttonLabel = labelObject.AddComponent<TextMeshProUGUI>();
         buttonLabel.text = label;
-        buttonLabel.alignment = TextAnchor.MiddleCenter;
-        buttonLabel.font = GetBuiltInFont();
-        buttonLabel.fontSize = 64;
-        buttonLabel.fontStyle = FontStyle.Bold;
+        buttonLabel.alignment = TextAlignmentOptions.Center;
+        buttonLabel.fontSize = 34;
+        buttonLabel.fontStyle = FontStyles.Bold;
         buttonLabel.color = Color.white;
         StretchToParent(labelObject.GetComponent<RectTransform>());
 

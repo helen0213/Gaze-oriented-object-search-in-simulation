@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -390,12 +391,11 @@ public class SimulatorStartMenu : MonoBehaviour
         StretchToParent(xrPanelObject.GetComponent<RectTransform>());
 
         xrTitleObject = CreateUIObject("XRTitle", xrPanelObject.transform);
-        Text xrTitleText = xrTitleObject.AddComponent<Text>();
+        TextMeshProUGUI xrTitleText = xrTitleObject.AddComponent<TextMeshProUGUI>();
         xrTitleText.text = "Choose an option";
-        xrTitleText.alignment = TextAnchor.MiddleCenter;
-        xrTitleText.font = GetBuiltInFont();
-        xrTitleText.fontSize = 432;
-        xrTitleText.fontStyle = FontStyle.Bold;
+        xrTitleText.alignment = TextAlignmentOptions.Center;
+        xrTitleText.fontSize = 48;
+        xrTitleText.fontStyle = FontStyles.Bold;
         xrTitleText.color = Color.white;
 
         RectTransform xrTitleRect = xrTitleObject.GetComponent<RectTransform>();
@@ -757,12 +757,11 @@ public class SimulatorStartMenu : MonoBehaviour
         buttonRect.offsetMax = Vector2.zero;
 
         labelObject = CreateUIObject(name + "Label", buttonObject.transform);
-        Text buttonLabel = labelObject.AddComponent<Text>();
+        TextMeshProUGUI buttonLabel = labelObject.AddComponent<TextMeshProUGUI>();
         buttonLabel.text = label;
-        buttonLabel.alignment = TextAnchor.MiddleCenter;
-        buttonLabel.font = GetBuiltInFont();
-        buttonLabel.fontSize = 256;
-        buttonLabel.fontStyle = FontStyle.Bold;
+        buttonLabel.alignment = TextAlignmentOptions.Center;
+        buttonLabel.fontSize = 34;
+        buttonLabel.fontStyle = FontStyles.Bold;
         buttonLabel.color = Color.white;
         StretchToParent(labelObject.GetComponent<RectTransform>());
 
