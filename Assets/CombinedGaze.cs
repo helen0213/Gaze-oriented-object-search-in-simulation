@@ -13,38 +13,37 @@ public class CombinedGaze : MonoBehaviour
     public bool EyeTrackingPermissionGranted { get; private set; }
     public bool EyeTrackingSupported { get; private set; }
 
+    private OVRPlugin.EyeGazesState eyeGazesState;
+
+    void Awake()
+    {
+        CombinedRay = BuildFallbackRay();
+    }
+
     void Update()
     {
         EyeTrackingSupported = OVRPlugin.eyeTrackingSupported;
         EyeTrackingPermissionGranted =
             OVRPermissionsRequester.IsPermissionGranted(OVRPermissionsRequester.Permission.EyeTracking);
 
-        bool leftValid = leftEye != null &&
-                         leftEye.Confidence >= confidenceThreshold &&
-                         leftEye.transform.forward.sqrMagnitude > 0.0001f;
+        if (!EyeTrackingSupported || !EyeTrackingPermissionGranted || Camera.main == null)
+        {
+            UseFallbackRay();
+            return;
+        }
 
-        bool rightValid = rightEye != null &&
-                          rightEye.Confidence >= confidenceThreshold &&
-                          rightEye.transform.forward.sqrMagnitude > 0.0001f;
+        if (!OVRPlugin.GetEyeGazesState(OVRPlugin.Step.Render, -1, ref eyeGazesState))
+        {
+            UseFallbackRay();
+            return;
+        }
+
+        bool leftValid = TryGetEyePose(OVRPlugin.Eye.Left, out Vector3 leftOrigin, out Vector3 leftDirection);
+        bool rightValid = TryGetEyePose(OVRPlugin.Eye.Right, out Vector3 rightOrigin, out Vector3 rightDirection);
 
         if (!leftValid && !rightValid)
         {
-            UsingEyeTracking = false;
-
-            if (fallbackHead != null)
-            {
-                CombinedRay = new Ray(fallbackHead.position, fallbackHead.forward);
-            }
-
-            if (debug)
-            {
-                Debug.DrawRay(
-                    CombinedRay.origin,
-                    CombinedRay.direction * 5f,
-                    Color.yellow
-                );
-            }
-
+            UseFallbackRay();
             return;
         }
 
@@ -55,18 +54,18 @@ public class CombinedGaze : MonoBehaviour
 
         if (leftValid && rightValid)
         {
-            origin = (leftEye.transform.position + rightEye.transform.position) * 0.5f;
-            direction = (leftEye.transform.forward + rightEye.transform.forward).normalized;
+            origin = (leftOrigin + rightOrigin) * 0.5f;
+            direction = (leftDirection + rightDirection).normalized;
         }
         else if (leftValid)
         {
-            origin = leftEye.transform.position;
-            direction = leftEye.transform.forward.normalized;
+            origin = leftOrigin;
+            direction = leftDirection;
         }
         else
         {
-            origin = rightEye.transform.position;
-            direction = rightEye.transform.forward.normalized;
+            origin = rightOrigin;
+            direction = rightDirection;
         }
 
         CombinedRay = new Ray(origin, direction);
@@ -79,5 +78,55 @@ public class CombinedGaze : MonoBehaviour
                 Color.green
             );
         }
+    }
+
+    private bool TryGetEyePose(OVRPlugin.Eye eye, out Vector3 origin, out Vector3 direction)
+    {
+        origin = Vector3.zero;
+        direction = Vector3.forward;
+
+        OVRPlugin.EyeGazeState eyeGaze = eyeGazesState.EyeGazes[(int)eye];
+        if (!eyeGaze.IsValid || eyeGaze.Confidence < confidenceThreshold)
+        {
+            return false;
+        }
+
+        OVRPose pose = eyeGaze.Pose.ToOVRPose().ToWorldSpacePose(Camera.main);
+        direction = pose.orientation * Vector3.forward;
+
+        if (direction.sqrMagnitude <= 0.0001f)
+        {
+            return false;
+        }
+
+        origin = pose.position;
+        direction.Normalize();
+        return true;
+    }
+
+    private void UseFallbackRay()
+    {
+        UsingEyeTracking = false;
+        CombinedRay = BuildFallbackRay();
+
+        if (debug)
+        {
+            Debug.DrawRay(
+                CombinedRay.origin,
+                CombinedRay.direction * 5f,
+                Color.yellow
+            );
+        }
+    }
+
+    private Ray BuildFallbackRay()
+    {
+        if (fallbackHead != null)
+        {
+            return new Ray(fallbackHead.position, fallbackHead.forward);
+        }
+
+        Transform source = Camera.main != null ? Camera.main.transform : transform;
+        return new Ray(source.position, source.forward);
     }
 }
