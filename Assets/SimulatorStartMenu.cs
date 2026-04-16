@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
@@ -25,6 +26,7 @@ public class SimulatorStartMenu : MonoBehaviour
     private const float AnchorWaitTimeout = 1.5f;
     private const float CreatureMenuOffsetX = 3.5f;
     private const float CreatureMenuHeight = 1.2f;
+    private static readonly Vector3 FixedStartMenuPosition = new Vector3(0f, 2f, 1.7f);
 
     private Canvas desktopCanvas;
     private GameObject desktopPanel;
@@ -371,14 +373,14 @@ public class SimulatorStartMenu : MonoBehaviour
 
         xrCanvas = xrMenuRoot.AddComponent<Canvas>();
         xrCanvas.renderMode = RenderMode.WorldSpace;
-        xrCanvas.sortingOrder = short.MaxValue;
+        xrCanvas.sortingOrder = short.MaxValue - 1;
 
         RectTransform xrCanvasRect = xrCanvas.GetComponent<RectTransform>();
-        xrCanvasRect.sizeDelta = new Vector2(1000f, 620f);
+        xrCanvasRect.sizeDelta = new Vector2(1040f, 640f);
         xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
 
         CanvasScaler xrScaler = xrMenuRoot.AddComponent<CanvasScaler>();
-        xrScaler.dynamicPixelsPerUnit = 96f;
+        xrScaler.dynamicPixelsPerUnit = 24f;
 
         xrMenuRoot.AddComponent<OVRRaycaster>();
 
@@ -392,13 +394,13 @@ public class SimulatorStartMenu : MonoBehaviour
         xrTitleText.text = "Choose an option";
         xrTitleText.alignment = TextAnchor.MiddleCenter;
         xrTitleText.font = GetBuiltInFont();
-        xrTitleText.fontSize = 56;
+        xrTitleText.fontSize = 432;
         xrTitleText.fontStyle = FontStyle.Bold;
         xrTitleText.color = Color.white;
 
         RectTransform xrTitleRect = xrTitleObject.GetComponent<RectTransform>();
-        xrTitleRect.anchorMin = new Vector2(0.2f, 0.62f);
-        xrTitleRect.anchorMax = new Vector2(0.8f, 0.8f);
+        xrTitleRect.anchorMin = new Vector2(0.14f, 0.56f);
+        xrTitleRect.anchorMax = new Vector2(0.86f, 0.74f);
         xrTitleRect.offsetMin = Vector2.zero;
         xrTitleRect.offsetMax = Vector2.zero;
 
@@ -451,9 +453,13 @@ public class SimulatorStartMenu : MonoBehaviour
         if (xrMenuRoot != null)
         {
             Camera menuCamera = FindMenuCamera();
-            Transform reference = menuCamera != null ? menuCamera.transform : menuAnchor;
+            Transform reference = FindCreatureReferenceTransform();
+            if (reference == null)
+            {
+                reference = menuCamera != null ? menuCamera.transform : menuAnchor;
+            }
 
-            Vector3 menuPosition = GetMenuWorldPosition(reference, menuCamera);
+            Vector3 menuPosition = FixedStartMenuPosition;
             Vector3 lookDirection = GetMenuLookDirection(menuPosition, reference, menuCamera);
 
             xrMenuRoot.transform.SetParent(null, true);
@@ -471,7 +477,8 @@ public class SimulatorStartMenu : MonoBehaviour
                     + ", camera=" + cameraName
                     + ", cameraPos=" + cameraPosition
                     + ", menuPos=" + menuPosition
-                    + ", menuForward=" + xrMenuRoot.transform.forward);
+                    + ", menuForward=" + xrMenuRoot.transform.forward
+                    + ", creatureAnchorUsed=" + (FindCreatureReferenceTransform() != null));
                 loggedPlacementDetails = true;
             }
         }
@@ -628,12 +635,25 @@ public class SimulatorStartMenu : MonoBehaviour
             return Vector3.zero;
         }
 
-        return reference.position + reference.forward * MenuDistance;
+        if (reference.GetComponent<Camera>() != null)
+        {
+            return reference.position + reference.forward * MenuDistance;
+        }
+
+        Vector3 basePosition = reference.position + reference.right * CreatureMenuOffsetX;
+        basePosition.y += CreatureMenuHeight;
+
+        if (menuCamera != null)
+        {
+            basePosition.y = Mathf.Max(basePosition.y, menuCamera.transform.position.y);
+        }
+
+        return basePosition;
     }
 
     private static Vector3 GetMenuLookDirection(Vector3 menuPosition, Transform reference, Camera menuCamera)
     {
-        Vector3 lookTarget = menuCamera != null ? menuCamera.transform.position : reference.position;
+        Vector3 lookTarget = menuCamera != null ? menuCamera.transform.position : reference.position + Vector3.up * CreatureMenuHeight;
         Vector3 lookDirection = lookTarget - menuPosition;
         if (lookDirection.sqrMagnitude < 0.0001f)
         {
@@ -741,7 +761,7 @@ public class SimulatorStartMenu : MonoBehaviour
         buttonLabel.text = label;
         buttonLabel.alignment = TextAnchor.MiddleCenter;
         buttonLabel.font = GetBuiltInFont();
-        buttonLabel.fontSize = 38;
+        buttonLabel.fontSize = 256;
         buttonLabel.fontStyle = FontStyle.Bold;
         buttonLabel.color = Color.white;
         StretchToParent(labelObject.GetComponent<RectTransform>());
@@ -835,6 +855,11 @@ public class SimulatorStartMenu : MonoBehaviour
 
         recenterAttempted = true;
 
+        if (Application.isEditor)
+        {
+            return;
+        }
+
         try
         {
             if (OVRManager.display != null)
@@ -847,7 +872,16 @@ public class SimulatorStartMenu : MonoBehaviour
             Debug.LogWarning("[SimulatorStartMenu] OVR recenter failed: " + exception.Message);
         }
 
-        InputTracking.Recenter();
+        List<XRInputSubsystem> inputSubsystems = new List<XRInputSubsystem>();
+        SubsystemManager.GetSubsystems(inputSubsystems);
+        for (int i = 0; i < inputSubsystems.Count; i++)
+        {
+            XRInputSubsystem subsystem = inputSubsystems[i];
+            if (subsystem != null && subsystem.running)
+            {
+                subsystem.TryRecenter();
+            }
+        }
     }
 
     private void EnsureOVRMenuRayDriver(GameObject eventSystemObject)

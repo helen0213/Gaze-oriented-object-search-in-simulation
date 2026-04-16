@@ -13,6 +13,7 @@ public class GazeInactivityMenu : MonoBehaviour
     private const float InactivitySeconds = 10f;
     private const float CreatureMenuOffsetX = 3.5f;
     private const float CreatureMenuHeight = 1.2f;
+    private static readonly Vector3 FixedMenuPosition = new Vector3(0f, 2f, 1.7f);
 
     private GazeTargetDetector detector;
     private Canvas desktopCanvas;
@@ -323,7 +324,7 @@ public class GazeInactivityMenu : MonoBehaviour
         titleText.text = "Need a moment?";
         titleText.alignment = TextAnchor.MiddleCenter;
         titleText.font = GetBuiltInFont();
-        titleText.fontSize = 54;
+        titleText.fontSize = 432;
         titleText.fontStyle = FontStyle.Bold;
         titleText.color = Color.white;
 
@@ -338,7 +339,7 @@ public class GazeInactivityMenu : MonoBehaviour
         subtitleText.text = "We have not detected gaze on any target for 10 seconds.";
         subtitleText.alignment = TextAnchor.MiddleCenter;
         subtitleText.font = GetBuiltInFont();
-        subtitleText.fontSize = 28;
+        subtitleText.fontSize = 224;
         subtitleText.color = new Color(0.8f, 0.87f, 0.92f, 1f);
 
         RectTransform subtitleRect = subtitle.GetComponent<RectTransform>();
@@ -388,12 +389,12 @@ public class GazeInactivityMenu : MonoBehaviour
             reference = menuCamera != null ? menuCamera.transform : anchor;
         }
 
-        Vector3 menuPosition = GetMenuWorldPosition(reference, menuCamera);
+        Vector3 menuPosition = FixedMenuPosition;
         Vector3 lookDirection = GetMenuLookDirection(menuPosition, reference, menuCamera);
 
         xrMenuRoot.transform.SetParent(null, true);
         xrMenuRoot.transform.position = menuPosition;
-        xrMenuRoot.transform.rotation = Quaternion.LookRotation(lookDirection, reference.up);
+        xrMenuRoot.transform.rotation = Quaternion.LookRotation(-lookDirection, reference.up);
         xrMenuRoot.transform.localScale = Vector3.one * 0.0015f;
 
         if (!loggedPlacementDetails)
@@ -623,7 +624,7 @@ public class GazeInactivityMenu : MonoBehaviour
         buttonLabel.text = label;
         buttonLabel.alignment = TextAnchor.MiddleCenter;
         buttonLabel.font = GetBuiltInFont();
-        buttonLabel.fontSize = 32;
+        buttonLabel.fontSize = 128;
         buttonLabel.fontStyle = FontStyle.Bold;
         buttonLabel.color = Color.white;
         StretchToParent(labelObject.GetComponent<RectTransform>());
@@ -664,7 +665,7 @@ public class GazeInactivityMenu : MonoBehaviour
         buttonLabel.text = label;
         buttonLabel.alignment = TextAnchor.MiddleCenter;
         buttonLabel.font = GetBuiltInFont();
-        buttonLabel.fontSize = 32;
+        buttonLabel.fontSize = 64;
         buttonLabel.fontStyle = FontStyle.Bold;
         buttonLabel.color = Color.white;
         StretchToParent(labelObject.GetComponent<RectTransform>());
