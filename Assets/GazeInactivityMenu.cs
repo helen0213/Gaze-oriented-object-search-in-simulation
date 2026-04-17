@@ -24,8 +24,6 @@ public class GazeInactivityMenu : MonoBehaviour
     private Canvas xrCanvas;
     private float idleTimer;
     private bool menuOpen;
-    private GameObject xrContinueButtonObject;
-    private GameObject xrEndButtonObject;
     private bool loggedPlacementDetails;
     private OVRMenuRayDriver ovrMenuRayDriver;
 
@@ -68,7 +66,7 @@ public class GazeInactivityMenu : MonoBehaviour
 
         if (menuOpen)
         {
-            HandleKeyboard();
+            HandleMenuInput();
             UpdateXRPlacement();
             return;
         }
@@ -106,7 +104,7 @@ public class GazeInactivityMenu : MonoBehaviour
         if (ovrMenuRayDriver != null)
         {
             ovrMenuRayDriver.SetVisualTarget(xrMenuRoot.transform);
-            ovrMenuRayDriver.SetXRMenuInputEnabled(true);
+            ovrMenuRayDriver.SetXRMenuInputEnabled(false);
         }
     }
 
@@ -148,24 +146,42 @@ public class GazeInactivityMenu : MonoBehaviour
 #endif
     }
 
-    private void HandleKeyboard()
+    private void HandleMenuInput()
     {
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard == null)
-        {
-            return;
-        }
-
-        if (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
+        if (WasContinuePressed())
         {
             ContinueGame();
             return;
         }
 
-        if (keyboard.escapeKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame)
+        if (WasQuitPressed())
         {
             EndGame();
         }
+    }
+
+    private static bool WasContinuePressed()
+    {
+        Keyboard keyboard = Keyboard.current;
+        bool keyboardPressed = keyboard != null
+            && (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame);
+
+        bool controllerPressed = OVRInput.GetDown(OVRInput.Button.One)
+            || OVRInput.GetDown(OVRInput.Button.Three);
+
+        return keyboardPressed || controllerPressed;
+    }
+
+    private static bool WasQuitPressed()
+    {
+        Keyboard keyboard = Keyboard.current;
+        bool keyboardPressed = keyboard != null
+            && (keyboard.escapeKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame);
+
+        bool controllerPressed = OVRInput.GetDown(OVRInput.Button.Two)
+            || OVRInput.GetDown(OVRInput.Button.Four);
+
+        return keyboardPressed || controllerPressed;
     }
 
     private void EnsureEventSystem()
@@ -260,23 +276,20 @@ public class GazeInactivityMenu : MonoBehaviour
         subtitleRect.offsetMin = Vector2.zero;
         subtitleRect.offsetMax = Vector2.zero;
 
-        CreateDesktopButton(
-            "ContinueButton",
-            desktopCard.transform,
-            "Continue",
-            new Color(0.15f, 0.58f, 0.66f, 1f),
-            new Vector2(0.14f, 0.16f),
-            new Vector2(0.46f, 0.32f),
-            ContinueGame);
+        GameObject promptObject = CreateUIObject("Prompt", desktopCard.transform);
+        Text promptText = promptObject.AddComponent<Text>();
+        promptText.text = "Press A or X to continue.\nPress B or Y to quit.";
+        promptText.alignment = TextAnchor.MiddleCenter;
+        promptText.font = GetBuiltInFont();
+        promptText.fontSize = 34;
+        promptText.fontStyle = FontStyle.Bold;
+        promptText.color = new Color(0.86f, 0.91f, 0.95f, 1f);
 
-        CreateDesktopButton(
-            "EndButton",
-            desktopCard.transform,
-            "End Session",
-            new Color(0.72f, 0.29f, 0.23f, 1f),
-            new Vector2(0.54f, 0.16f),
-            new Vector2(0.86f, 0.32f),
-            EndGame);
+        RectTransform promptRect = promptObject.GetComponent<RectTransform>();
+        promptRect.anchorMin = new Vector2(0.12f, 0.18f);
+        promptRect.anchorMax = new Vector2(0.88f, 0.36f);
+        promptRect.offsetMin = Vector2.zero;
+        promptRect.offsetMax = Vector2.zero;
 
         desktopCanvas.gameObject.SetActive(false);
     }
@@ -347,23 +360,19 @@ public class GazeInactivityMenu : MonoBehaviour
         subtitleRect.offsetMin = Vector2.zero;
         subtitleRect.offsetMax = Vector2.zero;
 
-        xrContinueButtonObject = CreateXRButton(
-            "XRContinueButton",
-            xrPanel.transform,
-            "Continue",
-            new Color(0.15f, 0.58f, 0.66f, 1f),
-            new Vector2(0.14f, 0.16f),
-            new Vector2(0.46f, 0.32f),
-            ContinueGame);
+        GameObject xrPromptObject = CreateUIObject("XRPrompt", xrPanel.transform);
+        TextMeshProUGUI xrPromptText = xrPromptObject.AddComponent<TextMeshProUGUI>();
+        xrPromptText.text = "Press A or X to continue.\nPress B or Y to quit.";
+        xrPromptText.alignment = TextAlignmentOptions.Center;
+        xrPromptText.fontSize = 31;
+        xrPromptText.fontStyle = FontStyles.Bold;
+        xrPromptText.color = new Color(0.86f, 0.91f, 0.95f, 1f);
 
-        xrEndButtonObject = CreateXRButton(
-            "XREndButton",
-            xrPanel.transform,
-            "End Session",
-            new Color(0.72f, 0.29f, 0.23f, 1f),
-            new Vector2(0.54f, 0.16f),
-            new Vector2(0.86f, 0.32f),
-            EndGame);
+        RectTransform xrPromptRect = xrPromptObject.GetComponent<RectTransform>();
+        xrPromptRect.anchorMin = new Vector2(0.14f, 0.18f);
+        xrPromptRect.anchorMax = new Vector2(0.86f, 0.36f);
+        xrPromptRect.offsetMin = Vector2.zero;
+        xrPromptRect.offsetMax = Vector2.zero;
 
         xrMenuRoot.SetActive(false);
     }
@@ -587,88 +596,6 @@ public class GazeInactivityMenu : MonoBehaviour
         }
 
         return lookDirection.normalized;
-    }
-
-    private void CreateDesktopButton(
-        string name,
-        Transform parent,
-        string label,
-        Color color,
-        Vector2 anchorMin,
-        Vector2 anchorMax,
-        UnityEngine.Events.UnityAction onClick)
-    {
-        GameObject buttonObject = CreateUIObject(name, parent);
-        Image buttonImage = buttonObject.AddComponent<Image>();
-        buttonImage.color = color;
-
-        Button button = buttonObject.AddComponent<Button>();
-        button.targetGraphic = buttonImage;
-        ColorBlock colors = button.colors;
-        colors.normalColor = color;
-        colors.highlightedColor = Color.Lerp(color, Color.white, 0.18f);
-        colors.pressedColor = Color.Lerp(color, Color.black, 0.18f);
-        colors.selectedColor = colors.highlightedColor;
-        button.colors = colors;
-        button.onClick.AddListener(onClick);
-
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-        buttonRect.anchorMin = anchorMin;
-        buttonRect.anchorMax = anchorMax;
-        buttonRect.offsetMin = Vector2.zero;
-        buttonRect.offsetMax = Vector2.zero;
-
-        GameObject labelObject = CreateUIObject(name + "Label", buttonObject.transform);
-        Text buttonLabel = labelObject.AddComponent<Text>();
-        buttonLabel.text = label;
-        buttonLabel.alignment = TextAnchor.MiddleCenter;
-        buttonLabel.font = GetBuiltInFont();
-        buttonLabel.fontSize = 128;
-        buttonLabel.fontStyle = FontStyle.Bold;
-        buttonLabel.color = Color.white;
-        StretchToParent(labelObject.GetComponent<RectTransform>());
-    }
-
-    private GameObject CreateXRButton(
-        string name,
-        Transform parent,
-        string label,
-        Color color,
-        Vector2 anchorMin,
-        Vector2 anchorMax,
-        UnityEngine.Events.UnityAction onClick)
-    {
-        GameObject buttonObject = CreateUIObject(name, parent);
-        Image buttonImage = buttonObject.AddComponent<Image>();
-        buttonImage.color = color;
-
-        Button button = buttonObject.AddComponent<Button>();
-        button.targetGraphic = buttonImage;
-        button.onClick.AddListener(onClick);
-
-        ColorBlock colors = button.colors;
-        colors.normalColor = color;
-        colors.highlightedColor = Color.Lerp(color, Color.white, 0.18f);
-        colors.pressedColor = Color.Lerp(color, Color.black, 0.18f);
-        colors.selectedColor = colors.highlightedColor;
-        button.colors = colors;
-
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-        buttonRect.anchorMin = anchorMin;
-        buttonRect.anchorMax = anchorMax;
-        buttonRect.offsetMin = Vector2.zero;
-        buttonRect.offsetMax = Vector2.zero;
-
-        GameObject labelObject = CreateUIObject(name + "Label", buttonObject.transform);
-        TextMeshProUGUI buttonLabel = labelObject.AddComponent<TextMeshProUGUI>();
-        buttonLabel.text = label;
-        buttonLabel.alignment = TextAlignmentOptions.Center;
-        buttonLabel.fontSize = 34;
-        buttonLabel.fontStyle = FontStyles.Bold;
-        buttonLabel.color = Color.white;
-        StretchToParent(labelObject.GetComponent<RectTransform>());
-
-        return buttonObject;
     }
 
     private GameObject CreateQuad(string name, Transform parent, Vector3 localPosition, Vector3 localScale, Color color)

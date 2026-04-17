@@ -35,11 +35,7 @@ public class SimulatorStartMenu : MonoBehaviour
 
     private GameObject xrMenuRoot;
     private GameObject xrPanelObject;
-    private GameObject xrStartButtonObject;
-    private GameObject xrExitButtonObject;
     private GameObject xrTitleObject;
-    private GameObject xrStartLabelObject;
-    private GameObject xrExitLabelObject;
 
     private Transform menuAnchor;
     private bool hasStarted;
@@ -178,22 +174,7 @@ public class SimulatorStartMenu : MonoBehaviour
         if (!hasStarted)
         {
             TryFinalizeMenuPresentation();
-
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null)
-            {
-                if (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame)
-                {
-                    StartSimulation();
-                    return;
-                }
-
-                if (keyboard.escapeKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame)
-                {
-                    ExitSimulation();
-                    return;
-                }
-            }
+            HandleMenuInput();
         }
 
         if (!loggedStartedState)
@@ -201,6 +182,44 @@ public class SimulatorStartMenu : MonoBehaviour
             Debug.Log("[SimulatorStartMenu] Update running. hasStarted=" + hasStarted + ", timeScale=" + Time.timeScale);
             loggedStartedState = true;
         }
+    }
+
+    private void HandleMenuInput()
+    {
+        if (WasContinuePressed())
+        {
+            StartSimulation();
+            return;
+        }
+
+        if (WasQuitPressed())
+        {
+            ExitSimulation();
+        }
+    }
+
+    private static bool WasContinuePressed()
+    {
+        Keyboard keyboard = Keyboard.current;
+        bool keyboardPressed = keyboard != null
+            && (keyboard.enterKey.wasPressedThisFrame || keyboard.numpadEnterKey.wasPressedThisFrame);
+
+        bool controllerPressed = OVRInput.GetDown(OVRInput.Button.One)
+            || OVRInput.GetDown(OVRInput.Button.Three);
+
+        return keyboardPressed || controllerPressed;
+    }
+
+    private static bool WasQuitPressed()
+    {
+        Keyboard keyboard = Keyboard.current;
+        bool keyboardPressed = keyboard != null
+            && (keyboard.escapeKey.wasPressedThisFrame || keyboard.backspaceKey.wasPressedThisFrame);
+
+        bool controllerPressed = OVRInput.GetDown(OVRInput.Button.Two)
+            || OVRInput.GetDown(OVRInput.Button.Four);
+
+        return keyboardPressed || controllerPressed;
     }
 
     private void TryFinalizeMenuPresentation()
@@ -220,7 +239,7 @@ public class SimulatorStartMenu : MonoBehaviour
             if (ovrMenuRayDriver != null)
             {
                 ovrMenuRayDriver.SetVisualTarget(xrMenuRoot.transform);
-                ovrMenuRayDriver.SetXRMenuInputEnabled(true);
+                ovrMenuRayDriver.SetXRMenuInputEnabled(false);
             }
             Debug.Log("[SimulatorStartMenu] XR menu activated at world position "
                 + xrMenuRoot.transform.position + " using anchor "
@@ -289,7 +308,7 @@ public class SimulatorStartMenu : MonoBehaviour
 
         GameObject titleObject = CreateUIObject("Title", desktopPanel.transform);
         Text titleText = titleObject.AddComponent<Text>();
-        titleText.text = "Choose an option";
+        titleText.text = "Ready to begin?";
         titleText.alignment = TextAnchor.MiddleCenter;
         titleText.font = GetBuiltInFont();
         titleText.fontSize = 52;
@@ -302,63 +321,20 @@ public class SimulatorStartMenu : MonoBehaviour
         titleRect.offsetMin = Vector2.zero;
         titleRect.offsetMax = Vector2.zero;
 
-        CreateDesktopButton(
-            "StartButton",
-            desktopPanel.transform,
-            "Start",
-            new Color(0.18f, 0.62f, 0.24f, 1f),
-            new Vector2(0.24f, 0.34f),
-            new Vector2(0.46f, 0.48f),
-            StartSimulation);
+        GameObject promptObject = CreateUIObject("Prompt", desktopPanel.transform);
+        Text promptText = promptObject.AddComponent<Text>();
+        promptText.text = "Press A or X to continue.\nPress B or Y to quit.";
+        promptText.alignment = TextAnchor.MiddleCenter;
+        promptText.font = GetBuiltInFont();
+        promptText.fontSize = 38;
+        promptText.fontStyle = FontStyle.Bold;
+        promptText.color = new Color(0.86f, 0.91f, 0.95f, 1f);
 
-        CreateDesktopButton(
-            "ExitButton",
-            desktopPanel.transform,
-            "Exit",
-            new Color(0.65f, 0.18f, 0.18f, 1f),
-            new Vector2(0.54f, 0.34f),
-            new Vector2(0.76f, 0.48f),
-            ExitSimulation);
-    }
-
-    private void CreateDesktopButton(
-        string name,
-        Transform parent,
-        string label,
-        Color color,
-        Vector2 anchorMin,
-        Vector2 anchorMax,
-        UnityEngine.Events.UnityAction onClick)
-    {
-        GameObject buttonObject = CreateUIObject(name, parent);
-        Image buttonImage = buttonObject.AddComponent<Image>();
-        buttonImage.color = color;
-
-        Button button = buttonObject.AddComponent<Button>();
-        button.targetGraphic = buttonImage;
-        ColorBlock colors = button.colors;
-        colors.normalColor = color;
-        colors.highlightedColor = Color.Lerp(color, Color.white, 0.12f);
-        colors.pressedColor = Color.Lerp(color, Color.black, 0.25f);
-        colors.selectedColor = colors.highlightedColor;
-        button.colors = colors;
-        button.onClick.AddListener(onClick);
-
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-        buttonRect.anchorMin = anchorMin;
-        buttonRect.anchorMax = anchorMax;
-        buttonRect.offsetMin = Vector2.zero;
-        buttonRect.offsetMax = Vector2.zero;
-
-        GameObject labelObject = CreateUIObject(name + "Label", buttonObject.transform);
-        Text buttonLabel = labelObject.AddComponent<Text>();
-        buttonLabel.text = label;
-        buttonLabel.alignment = TextAnchor.MiddleCenter;
-        buttonLabel.font = GetBuiltInFont();
-        buttonLabel.fontSize = 38;
-        buttonLabel.fontStyle = FontStyle.Bold;
-        buttonLabel.color = Color.white;
-        StretchToParent(labelObject.GetComponent<RectTransform>());
+        RectTransform promptRect = promptObject.GetComponent<RectTransform>();
+        promptRect.anchorMin = new Vector2(0.2f, 0.34f);
+        promptRect.anchorMax = new Vector2(0.8f, 0.56f);
+        promptRect.offsetMin = Vector2.zero;
+        promptRect.offsetMax = Vector2.zero;
     }
 
     private void EnsureXRMenu()
@@ -392,7 +368,7 @@ public class SimulatorStartMenu : MonoBehaviour
 
         xrTitleObject = CreateUIObject("XRTitle", xrPanelObject.transform);
         TextMeshProUGUI xrTitleText = xrTitleObject.AddComponent<TextMeshProUGUI>();
-        xrTitleText.text = "Choose an option";
+        xrTitleText.text = "Ready to begin?";
         xrTitleText.alignment = TextAlignmentOptions.Center;
         xrTitleText.fontSize = 48;
         xrTitleText.fontStyle = FontStyles.Bold;
@@ -404,25 +380,19 @@ public class SimulatorStartMenu : MonoBehaviour
         xrTitleRect.offsetMin = Vector2.zero;
         xrTitleRect.offsetMax = Vector2.zero;
 
-        xrStartButtonObject = CreateXRButton(
-            "XRStartButton",
-            xrPanelObject.transform,
-            "Start",
-            new Color(0.18f, 0.62f, 0.24f, 1f),
-            new Vector2(0.14f, 0.22f),
-            new Vector2(0.44f, 0.4f),
-            StartSimulation,
-            out xrStartLabelObject);
+        GameObject xrPromptObject = CreateUIObject("XRPrompt", xrPanelObject.transform);
+        TextMeshProUGUI xrPromptText = xrPromptObject.AddComponent<TextMeshProUGUI>();
+        xrPromptText.text = "Press A or X to continue.\nPress B or Y to quit.";
+        xrPromptText.alignment = TextAlignmentOptions.Center;
+        xrPromptText.fontSize = 33;
+        xrPromptText.fontStyle = FontStyles.Bold;
+        xrPromptText.color = new Color(0.86f, 0.91f, 0.95f, 1f);
 
-        xrExitButtonObject = CreateXRButton(
-            "XRExitButton",
-            xrPanelObject.transform,
-            "Exit",
-            new Color(0.65f, 0.18f, 0.18f, 1f),
-            new Vector2(0.56f, 0.22f),
-            new Vector2(0.86f, 0.4f),
-            ExitSimulation,
-            out xrExitLabelObject);
+        RectTransform xrPromptRect = xrPromptObject.GetComponent<RectTransform>();
+        xrPromptRect.anchorMin = new Vector2(0.14f, 0.3f);
+        xrPromptRect.anchorMax = new Vector2(0.86f, 0.56f);
+        xrPromptRect.offsetMin = Vector2.zero;
+        xrPromptRect.offsetMax = Vector2.zero;
     }
 
     private bool UpdateMenuPlacement()
@@ -723,49 +693,6 @@ public class SimulatorStartMenu : MonoBehaviour
         quad.GetComponent<MeshRenderer>().material = material;
 
         return quad;
-    }
-
-    private GameObject CreateXRButton(
-        string name,
-        Transform parent,
-        string label,
-        Color color,
-        Vector2 anchorMin,
-        Vector2 anchorMax,
-        UnityEngine.Events.UnityAction onClick,
-        out GameObject labelObject)
-    {
-        GameObject buttonObject = CreateUIObject(name, parent);
-        Image buttonImage = buttonObject.AddComponent<Image>();
-        buttonImage.color = color;
-
-        Button button = buttonObject.AddComponent<Button>();
-        button.targetGraphic = buttonImage;
-        button.onClick.AddListener(onClick);
-
-        ColorBlock colors = button.colors;
-        colors.normalColor = color;
-        colors.highlightedColor = Color.Lerp(color, Color.white, 0.12f);
-        colors.pressedColor = Color.Lerp(color, Color.black, 0.25f);
-        colors.selectedColor = colors.highlightedColor;
-        button.colors = colors;
-
-        RectTransform buttonRect = buttonObject.GetComponent<RectTransform>();
-        buttonRect.anchorMin = anchorMin;
-        buttonRect.anchorMax = anchorMax;
-        buttonRect.offsetMin = Vector2.zero;
-        buttonRect.offsetMax = Vector2.zero;
-
-        labelObject = CreateUIObject(name + "Label", buttonObject.transform);
-        TextMeshProUGUI buttonLabel = labelObject.AddComponent<TextMeshProUGUI>();
-        buttonLabel.text = label;
-        buttonLabel.alignment = TextAlignmentOptions.Center;
-        buttonLabel.fontSize = 34;
-        buttonLabel.fontStyle = FontStyles.Bold;
-        buttonLabel.color = Color.white;
-        StretchToParent(labelObject.GetComponent<RectTransform>());
-
-        return buttonObject;
     }
 
     private Texture2D BuildBlockTextTexture(string text, Color foreground, Color background, int pixelSize, int letterSpacing)
