@@ -28,6 +28,7 @@ public class GazeTargetDetector : MonoBehaviour
     private GameObject lastLoggedTarget;
     private Renderer lastHighlightedRenderer;
     private Color lastOriginalColor;
+    private Transform[] randomizedAnimals = new Transform[0];
 
     void Start()
     {
@@ -127,6 +128,7 @@ public class GazeTargetDetector : MonoBehaviour
     void RandomizeAnimalPositions()
     {
         Transform[] sourceAnimals = GetAnimalsToShuffle();
+        randomizedAnimals = CompactNonNull(sourceAnimals);
         Vector3[] slotPositions;
         Quaternion[] slotRotations;
         BuildSlots(sourceAnimals, out slotPositions, out slotRotations);
@@ -176,6 +178,14 @@ public class GazeTargetDetector : MonoBehaviour
                     + " at " + slotPositions[slotIndex]);
             }
         }
+    }
+
+    public Transform[] GetRandomizedAnimals()
+    {
+        if (randomizedAnimals != null && randomizedAnimals.Length > 0)
+            return CompactNonNull(randomizedAnimals);
+
+        return GetAnimalsToShuffle();
     }
 
     Transform[] GetAnimalsToShuffle()

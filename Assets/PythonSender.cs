@@ -17,6 +17,7 @@ public class TestMessage
     public Vector3 gazeOrigin;
     public Vector3 gazeDirection;
     public SceneObjectInfo[] sceneObjects;
+    public PomdpObjectByIndex pomdpObjectByIndex;
 }
 
 [Serializable]
@@ -24,6 +25,14 @@ public class SceneObjectInfo
 {
     public string name;
     public Vector3 position;
+}
+
+[Serializable]
+public class PomdpObjectByIndex
+{
+    public string obj1;
+    public string obj2;
+    public string obj3;
 }
 
 public class PythonSender : MonoBehaviour
@@ -37,14 +46,16 @@ public class PythonSender : MonoBehaviour
     public CombinedGaze combinedGaze;
     [Header("Scene Objects")]
     public bool sendSceneObjects = true;
+    public GazeTargetDetector gazeTargetDetector;
     public bool includeInactiveColliders = true;
+    public bool requireNonEmptySceneObjects = true;
     // Desired send rate (messages per second).
     public float targetHz = 30f;
     // Time between sends (seconds).
     private float sendInterval = 0f;
     // Accumulator for unscaled time to pace sends.
     private float sendAccumulator = 0f;
-    private bool sceneObjectsSent = false;
+    private SceneObjectInfo[] lastNonEmptySceneObjects;
 
     async void Start()
     {
@@ -136,49 +147,112 @@ public class PythonSender : MonoBehaviour
             msg.gazeDirection = combinedGaze.CombinedRay.direction;
         }
 
-        if (sendSceneObjects && !sceneObjectsSent)
+        if (combinedGaze == null)
         {
-            Collider[] colliders = includeInactiveColliders
-                ? Resources.FindObjectsOfTypeAll<Collider>()
-                : UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsSortMode.None);
+            Transform fallback = Camera.main != null ? Camera.main.transform : transform;
+            msg.usingEyeTracking = false;
+            msg.gazeOrigin = fallback.position;
+            msg.gazeDirection = fallback.forward;
+        }
 
-            Scene scene = SceneManager.GetActiveScene();
-            var list = new System.Collections.Generic.List<SceneObjectInfo>(colliders.Length);
-            var seen = new System.Collections.Generic.HashSet<int>();
+        if (sendSceneObjects)
+        {
+            var list = BuildSceneObjectsSnapshot();
 
-            for (int i = 0; i < colliders.Length; i++)
+            if (list.Count == 0 && lastNonEmptySceneObjects != null && lastNonEmptySceneObjects.Length > 0)
             {
-                Collider c = colliders[i];
-                if (c == null) continue;
-                GameObject go = c.gameObject;
-                if (go == null) continue;
-
-                // Skip assets/prefabs not in the active scene.
-                if (go.hideFlags != HideFlags.None) continue;
-                if (!go.scene.IsValid()) continue;
-                if (go.scene != scene) continue;
-
-                int id = go.GetInstanceID();
-                if (seen.Contains(id)) continue;
-                seen.Add(id);
-
-                Transform t = go.transform;
-                list.Add(new SceneObjectInfo
-                {
-                    name = t.name,
-                    position = t.position
-                });
+                // Keep payload non-empty if live discovery temporarily fails.
+                msg.sceneObjects = lastNonEmptySceneObjects;
+                msg.pomdpObjectByIndex = BuildPomdpMap(lastNonEmptySceneObjects);
             }
-
-            if (list.Count > 0)
+            else if (list.Count > 0)
             {
                 msg.sceneObjects = list.ToArray();
-                sceneObjectsSent = true;
+                lastNonEmptySceneObjects = msg.sceneObjects;
+                msg.pomdpObjectByIndex = BuildPomdpMap(msg.sceneObjects);
+            }
+
+            if (requireNonEmptySceneObjects && (msg.sceneObjects == null || msg.sceneObjects.Length == 0))
+            {
+                Debug.LogWarning("[PythonSender] Skipping send because sceneObjects is empty.");
+                return;
             }
         }
 
         // Serialize and send to Python.
         string json = JsonUtility.ToJson(msg);
         websocket.SendText(json);
+    }
+
+    private System.Collections.Generic.List<SceneObjectInfo> BuildSceneObjectsSnapshot()
+    {
+        if (gazeTargetDetector != null)
+        {
+            Transform[] tracked = gazeTargetDetector.GetRandomizedAnimals();
+            if (tracked != null && tracked.Length > 0)
+            {
+                var trackedList = new System.Collections.Generic.List<SceneObjectInfo>(tracked.Length);
+                for (int i = 0; i < tracked.Length; i++)
+                {
+                    Transform t = tracked[i];
+                    if (t == null) continue;
+
+                    trackedList.Add(new SceneObjectInfo
+                    {
+                        name = t.name,
+                        position = t.position
+                    });
+                }
+
+                if (trackedList.Count > 0)
+                    return trackedList;
+            }
+        }
+
+        Collider[] colliders = includeInactiveColliders
+            ? Resources.FindObjectsOfTypeAll<Collider>()
+            : UnityEngine.Object.FindObjectsByType<Collider>(FindObjectsSortMode.None);
+
+        Scene scene = SceneManager.GetActiveScene();
+        var list = new System.Collections.Generic.List<SceneObjectInfo>(colliders.Length);
+        var seen = new System.Collections.Generic.HashSet<int>();
+
+        for (int i = 0; i < colliders.Length; i++)
+        {
+            Collider c = colliders[i];
+            if (c == null) continue;
+            GameObject go = c.gameObject;
+            if (go == null) continue;
+
+            // Skip assets/prefabs not in the active scene.
+            if (go.hideFlags != HideFlags.None) continue;
+            if (!go.scene.IsValid()) continue;
+            if (go.scene != scene) continue;
+
+            int id = go.GetInstanceID();
+            if (seen.Contains(id)) continue;
+            seen.Add(id);
+
+            Transform t = go.transform;
+            list.Add(new SceneObjectInfo
+            {
+                name = t.name,
+                position = t.position
+            });
+        }
+
+        return list;
+    }
+
+    private PomdpObjectByIndex BuildPomdpMap(SceneObjectInfo[] sceneObjects)
+    {
+        PomdpObjectByIndex map = new PomdpObjectByIndex();
+        if (sceneObjects == null || sceneObjects.Length == 0)
+            return map;
+
+        map.obj1 = sceneObjects.Length > 0 ? sceneObjects[0].name : null;
+        map.obj2 = sceneObjects.Length > 1 ? sceneObjects[1].name : null;
+        map.obj3 = sceneObjects.Length > 2 ? sceneObjects[2].name : null;
+        return map;
     }
 }
