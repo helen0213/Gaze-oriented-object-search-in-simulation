@@ -43,6 +43,19 @@ public class GazeTargetDetector : MonoBehaviour
 
     void Update()
     {
+        if (SimulationMenuBlocker.IsBlockingScene())
+        {
+            if (debug && lastLoggedTarget != null)
+            {
+                Debug.Log("👁 Looking at: NONE");
+                lastLoggedTarget = null;
+            }
+
+            ClearHighlight();
+            CurrentTarget = null;
+            return;
+        }
+
         if (combinedGaze == null)
             return;
 
@@ -123,6 +136,13 @@ public class GazeTargetDetector : MonoBehaviour
             lastHighlightedRenderer.material.color = lastOriginalColor;
             lastHighlightedRenderer = null;
         }
+    }
+
+    void OnDisable()
+    {
+        ClearHighlight();
+        CurrentTarget = null;
+        lastLoggedTarget = null;
     }
 
     void RandomizeAnimalPositions()
