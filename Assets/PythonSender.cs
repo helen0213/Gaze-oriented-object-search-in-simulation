@@ -42,6 +42,11 @@ public class PythonSender : MonoBehaviour
     private WebSocket websocket;
     private int seq = 0;
     private bool isConnected = false;
+    [Header("WebSocket")]
+    [Tooltip("Used in Unity Editor and desktop builds.")]
+    public string editorWebSocketUrl = "ws://127.0.0.1:8000/ws";
+    [Tooltip("Used on Android/device builds. Set this to your computer's LAN IP by running 'ipconfig getifaddr en0', e.g. ws://192.168.1.42:8000/ws.")]
+    public string androidWebSocketUrl = "ws://xx.xx.xx.xx:8000/ws";
     [Header("Gaze Source")]
     public CombinedGaze combinedGaze;
     [Header("Scene Objects")]
@@ -61,8 +66,19 @@ public class PythonSender : MonoBehaviour
     {
         // Initialize interval from inspector value before connecting.
         sendInterval = 1f / targetHz;
+        string websocketUrl = GetWebSocketUrl();
+        Debug.Log("[PythonSender] Connecting to " + websocketUrl);
+
+        if (Application.platform == RuntimePlatform.Android &&
+            (websocketUrl.Contains("127.0.0.1") || websocketUrl.Contains("localhost")))
+        {
+            Debug.LogWarning("[PythonSender] Android build is using loopback URL. " +
+                             "Set androidWebSocketUrl to your computer LAN IP (e.g. ws://192.168.x.x:8000/ws) " +
+                             "or run adb reverse tcp:8000 tcp:8000.");
+        }
+
         // Create the WebSocket client.
-        websocket = new WebSocket("ws://127.0.0.1:8000/ws");
+        websocket = new WebSocket(websocketUrl);
 
         websocket.OnOpen += () =>
         {
@@ -254,5 +270,19 @@ public class PythonSender : MonoBehaviour
         map.obj2 = sceneObjects.Length > 1 ? sceneObjects[1].name : null;
         map.obj3 = sceneObjects.Length > 2 ? sceneObjects[2].name : null;
         return map;
+    }
+
+    private string GetWebSocketUrl()
+    {
+        string url = Application.platform == RuntimePlatform.Android
+            ? androidWebSocketUrl
+            : editorWebSocketUrl;
+
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return "ws://127.0.0.1:8000/ws";
+        }
+
+        return url.Trim();
     }
 }

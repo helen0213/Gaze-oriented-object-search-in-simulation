@@ -28,3 +28,21 @@ After running on Quest Pro, use the helper script from the project root:
 ```
 
 This copies gaze log CSV files from the headset's app storage into the local `GazeLogs/` directory.
+
+## PythonSender IP Setup (Headset)
+
+When deploying to Quest/Android, `127.0.0.1` points to the headset itself, not your Mac.
+
+Before running the Python server, get your current Mac LAN IP:
+
+```bash
+ipconfig getifaddr en0
+```
+
+Then in Unity, set `PythonSender.androidWebSocketUrl` to:
+
+```text
+ws://<MAC_IP>:8000/ws
+```
+
+If `en0` is not your active interface, use the correct interface (for example `en1`).
