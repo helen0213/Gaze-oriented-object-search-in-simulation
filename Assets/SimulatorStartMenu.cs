@@ -808,6 +808,30 @@ public class SimulatorStartMenu : MonoBehaviour
                 subsystem.TryRecenter();
             }
         }
+
+        Transform rigRoot = FindRigRootForFacingAdjustment();
+        if (rigRoot != null)
+        {
+            rigRoot.Rotate(0f, 180f, 0f, Space.World);
+            Debug.Log("[SimulatorStartMenu] Applied one-time rig yaw adjustment: +180 deg on " + rigRoot.name);
+        }
+    }
+
+    private static Transform FindRigRootForFacingAdjustment()
+    {
+        GameObject buildingBlockRig = GameObject.Find("[BuildingBlock] Camera Rig");
+        if (buildingBlockRig != null)
+        {
+            return buildingBlockRig.transform;
+        }
+
+        GameObject ovrRig = GameObject.Find("OVRCameraRig");
+        if (ovrRig != null)
+        {
+            return ovrRig.transform;
+        }
+
+        return null;
     }
 
     private void EnsureOVRMenuRayDriver(GameObject eventSystemObject)
