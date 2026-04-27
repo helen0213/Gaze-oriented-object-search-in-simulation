@@ -11,6 +11,8 @@ public class GazeTargetDetector : MonoBehaviour
     public bool autoDetectAnimalsFromTargetLayer = true;
     public bool requireChangedLayout = true;
     public int expectedAnimalCount = 3;
+    public string[] allowedTargetNames = { "Chicken_001", "Pinguin_001", "Tiger_001" };
+    public string[] excludedTargetNames = { "Dog_001" };
 
     public CombinedGaze combinedGaze;
 
@@ -65,7 +67,7 @@ public class GazeTargetDetector : MonoBehaviour
         {
             GameObject targetRoot = ResolveTargetRoot(hit.collider.gameObject);
 
-            if (targetRoot != null)
+            if (targetRoot != null && IsAllowedTarget(targetRoot.transform) && !IsExcludedTarget(targetRoot.transform))
             {
                 CurrentHit = hit;
                 CurrentTarget = targetRoot;
@@ -248,7 +250,7 @@ public class GazeTargetDetector : MonoBehaviour
                 continue;
 
             Transform root = FindTopmostInTargetLayer(t);
-            if (root == null || !unique.Add(root))
+            if (root == null || !IsAllowedTarget(root) || IsExcludedTarget(root) || !unique.Add(root))
                 continue;
 
             found.Add(root);
@@ -293,6 +295,45 @@ public class GazeTargetDetector : MonoBehaviour
         }
 
         return topmost;
+    }
+
+    private bool IsAllowedTarget(Transform target)
+    {
+        if (target == null)
+            return false;
+
+        if (allowedTargetNames == null || allowedTargetNames.Length == 0)
+            return true;
+
+        for (int i = 0; i < allowedTargetNames.Length; i++)
+        {
+            string allowedName = allowedTargetNames[i];
+            if (string.IsNullOrWhiteSpace(allowedName))
+                continue;
+
+            if (target.name == allowedName)
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool IsExcludedTarget(Transform target)
+    {
+        if (target == null || excludedTargetNames == null)
+            return false;
+
+        for (int i = 0; i < excludedTargetNames.Length; i++)
+        {
+            string excludedName = excludedTargetNames[i];
+            if (string.IsNullOrWhiteSpace(excludedName))
+                continue;
+
+            if (target.name == excludedName)
+                return true;
+        }
+
+        return false;
     }
 
     void BuildSlots(Transform[] sourceAnimals, out Vector3[] positions, out Quaternion[] rotations)
