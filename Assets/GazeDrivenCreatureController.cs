@@ -28,6 +28,7 @@ public class GazeDrivenCreatureController : MonoBehaviour
     [Header("Movement")]
     public Transform creatureRoot;
     public float stopDistance = 1.2f;
+    public float pickupArrivalPadding = 0.4f;
     public float slowDownDistance = 2.5f;
     public bool runToTarget = false;
     public bool faceTargetWhileIdle = true;
@@ -47,6 +48,7 @@ public class GazeDrivenCreatureController : MonoBehaviour
     private readonly Dictionary<string, GameObject> nameToObject = new Dictionary<string, GameObject>();
     private string loadedMappingPath;
     private System.DateTime loadedMappingWriteTimeUtc;
+    private float lastMoveLogTime = -999f;
 
     private void OnEnable()
     {
@@ -146,7 +148,11 @@ public class GazeDrivenCreatureController : MonoBehaviour
         Vector3 flatOffset = destination - creatureRoot.position;
         flatOffset.y = 0f;
 
-        if (flatOffset.sqrMagnitude <= stopDistance * stopDistance)
+        float effectiveStopDistance = moveOnlyOnPickUpAction
+            ? stopDistance + pickupArrivalPadding
+            : stopDistance;
+
+        if (flatOffset.sqrMagnitude <= effectiveStopDistance * effectiveStopDistance)
         {
             Debug.Log("[GazeDrivenCreatureController] Target is inside stop distance: " + flatOffset.magnitude.ToString("F2"));
             mover.SetInput(Vector2.zero, faceTargetWhileIdle ? destination : lookTarget, false, false);
@@ -165,7 +171,11 @@ public class GazeDrivenCreatureController : MonoBehaviour
             Debug.DrawLine(creatureRoot.position + Vector3.up * 0.25f, destination, Color.cyan);
         }
 
-        Debug.Log("[GazeDrivenCreatureController] Moving toward " + targetObject.name + " with distance " + flatOffset.magnitude.ToString("F2"));
+        if (debug || Time.realtimeSinceStartup - lastMoveLogTime >= 1f)
+        {
+            lastMoveLogTime = Time.realtimeSinceStartup;
+            Debug.Log("[GazeDrivenCreatureController] Moving toward " + targetObject.name + " with distance " + flatOffset.magnitude.ToString("F2"));
+        }
 
         mover.SetInput(axis, destination, shouldRun, false);
     }
