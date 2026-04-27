@@ -151,6 +151,12 @@ public class PythonSender : MonoBehaviour
 
         // Only send when connected.
         if (!isConnected || websocket == null) return;
+        if (SimulationMenuBlocker.IsBlockingScene())
+        {
+            // Mirror gaze collision/highlight gating while start/inactivity menus are active.
+            sendAccumulator = 0f;
+            return;
+        }
 
         // Accumulate real time to maintain an approximate fixed send rate.
         sendAccumulator += Time.unscaledDeltaTime;
