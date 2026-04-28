@@ -53,6 +53,11 @@ public class GazeDataLogger : MonoBehaviour
             return;
         }
 
+        if (SimulationMenuBlocker.IsBlockingScene())
+        {
+            return;
+        }
+
         if (logEveryFrame)
         {
             WriteSample();
